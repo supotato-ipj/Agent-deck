@@ -1,0 +1,24 @@
+{
+  "label": "control-bare",
+  "rootPid": 26140,
+  "coreCount": 16,
+  "settleMs": 30000,
+  "durationMs": 120000,
+  "wallMs": 121424,
+  "cpuMsDelta": 203.1,
+  "percentOfMachine": 0.01,
+  "treeAtStart": [
+    18544,
+    18992,
+    20748,
+    26140
+  ],
+  "treeAtEnd": [
+    18544,
+    18992,
+    20748,
+    26140
+  ],
+  "churnedPids": [],
+  "measuredAt": "2026-11-14T12:20:20.051Z"
+}

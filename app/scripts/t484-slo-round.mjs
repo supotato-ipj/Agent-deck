@@ -32,6 +32,7 @@ const appDir = path.resolve(arg('app', ''))
 const outDir = path.resolve(arg('out', ''))
 const cpuMs = Number(arg('cpu-ms', '720000'))
 const skipCpu = process.argv.includes('--skip-cpu')
+const clicksOnly = process.argv.includes('--clicks-only')
 const cdpPort = String(arg('cdp-port', '9223'))
 
 if (!appDir || !fs.existsSync(path.join(appDir, 'dist', 'main', 'index.js'))) {
@@ -285,36 +286,40 @@ async function measureClick(targetExe, evFile, seq) {
   const clickT0 = Date.now()
   win32.clickPhys(px, py, 'left')
   rec.clickT0 = clickT0
-  // launching 态 DOM 轮询（≤1s 视觉反馈线）
-  const exeLit = JSON.stringify(targetExe)
-  for (let i = 0; i < 75 && rec.latLaunchingMs === undefined; i++) {
-    try {
-      const d = await cdpEval(stripTarget, `(() => { const norm = (s) => (s||'').split('/').join('\\\\').toLowerCase(); const el = [...document.querySelectorAll('.tb-app.launching')].find((n) => norm(n.dataset.exe) === norm(${exeLit})); return JSON.stringify({ on: !!el }); })()`)
-      if (JSON.parse(d).on) rec.latLaunchingMs = Date.now() - clickT0
-    } catch { /* CDP 瞬断重试 */ }
-    if (rec.latLaunchingMs === undefined) await sleep(40)
-  }
-  // issuedMs 事件戳（#483 口径：taskbar-app-result）
-  const deadlineR = Date.now() + 8000
-  while (Date.now() < deadlineR && rec.issuedMs === undefined) {
-    const ev = readEvents(evFile).find((e) => e.type === 'taskbar-app-result' && normExe(e.exe) === normExe(targetExe) && e.t >= clickT0)
-    if (ev) { rec.issuedMs = ev.issuedMs; rec.action = ev.action; rec.ok = ev.ok; rec.resultAt = ev.t - clickT0 }
-    else await sleep(50)
-  }
-  // 落定对账帧（launchExe 收下 ok）
-  const deadlineS = Date.now() + 10000
-  while (Date.now() < deadlineS && rec.settleAtMs === undefined) {
-    const ev = readEvents(evFile).find((e) => e.type === 'taskbar-app-launch-result' && normExe(e.exe) === normExe(targetExe) && e.ok === true && e.t >= clickT0)
-    if (ev) rec.settleAtMs = ev.t - clickT0
-    else await sleep(50)
-  }
-  // 首窗出场（新可见顶层窗、exe 归一匹配——按 hwnd 新性判）
+  // 四通道并行轮询（交错单循环——各通道等待互不串行延误）：
+  //  ① launching 态 DOM（≤1s 视觉反馈线，CDP 40ms 拍）
+  //  ② taskbar-app-result（issuedMs 事件戳；exe 值被常驻投影脱敏为 '<path>'——
+  //     guard 槽内本编排是唯一点击源，按 t ≥ clickT0 时间门匹配，P29 时间门同法）
+  //  ③ taskbar-app-launch-result（launchExe 收下 ok 对账帧）
+  //  ④ 新窗出场（新可见顶层窗、exe 归一匹配——按 hwnd 新性判）
   const imgName = path.basename(targetExe).replace(/\.exe$/i, '').toLowerCase()
-  const wDeadline = Date.now() + 20000
-  while (Date.now() < wDeadline && rec.winAppearMs === undefined) {
-    const fresh = visibleWindows().find((w) => w.exe === imgName && !before.has(`${w.hwnd}`))
-    if (fresh) { rec.winAppearMs = Date.now() - clickT0; rec.window = { title: fresh.title, cls: fresh.cls, pid: fresh.pid, hwnd: fresh.hwnd } }
-    else await sleep(60)
+  const deadlineAll = clickT0 + 22000
+  while (Date.now() < deadlineAll &&
+    (rec.latLaunchingMs === undefined || rec.issuedMs === undefined ||
+      rec.settleAtMs === undefined || rec.winAppearMs === undefined)) {
+    if (rec.latLaunchingMs === undefined) {
+      try {
+        const exeLit = JSON.stringify(targetExe)
+        const d = await cdpEval(stripTarget, `(() => { const norm = (s) => (s||'').split('/').join('\\\\').toLowerCase(); const el = [...document.querySelectorAll('.tb-app.launching')].find((n) => norm(n.dataset.exe) === norm(${exeLit})); return JSON.stringify({ on: !!el }); })()`)
+        if (JSON.parse(d).on) rec.latLaunchingMs = Date.now() - clickT0
+      } catch { /* CDP 瞬断重试 */ }
+    }
+    if (rec.issuedMs === undefined || rec.settleAtMs === undefined) {
+      const evs = readEvents(evFile).filter((e) => e.t >= clickT0)
+      if (rec.issuedMs === undefined) {
+        const ev = evs.find((e) => e.type === 'taskbar-app-result')
+        if (ev) { rec.issuedMs = ev.issuedMs; rec.action = ev.action; rec.ok = ev.ok; rec.resultAt = ev.t - clickT0 }
+      }
+      if (rec.settleAtMs === undefined) {
+        const ev = evs.find((e) => e.type === 'taskbar-app-launch-result' && e.ok === true)
+        if (ev) rec.settleAtMs = ev.t - clickT0
+      }
+    }
+    if (rec.winAppearMs === undefined) {
+      const fresh = visibleWindows().find((w) => w.exe === imgName && !before.has(`${w.hwnd}`))
+      if (fresh) { rec.winAppearMs = Date.now() - clickT0; rec.window = { title: fresh.title, cls: fresh.cls, pid: fresh.pid, hwnd: fresh.hwnd } }
+    }
+    await sleep(40)
   }
   rec.verdict = {
     launching1s: rec.latLaunchingMs !== undefined && rec.latLaunchingMs <= 1000,
@@ -443,14 +448,14 @@ function pinNotepad() {
   const already = (layout.pinned || []).some((p) => normExe(p.exe) === normExe('C:\\Windows\\notepad.exe'))
   if (already) {
     results.layoutPin = { modified: false, originalSha, backup, note: 'notepad 已在钉入表（无需改动）' }
-    return { layoutFile, modified: false }
+    return results.layoutPin
   }
   layout.pinned.push({ exe: 'C:\\Windows\\notepad.exe', label: 'notepad', iconKey: 'c:\\windows\\notepad.exe|0' })
   fs.writeFileSync(layoutFile, JSON.stringify(layout, null, 1) + '\n')
   const modifiedSha = sha256(layoutFile)
   results.layoutPin = { modified: true, originalSha, modifiedSha, backup, layoutFile }
   log(`taskbar-layout.json 已钉入 notepad（原 sha=${originalSha.slice(0, 12)} 新 sha=${modifiedSha.slice(0, 12)}）`)
-  return { layoutFile, modified: true }
+  return results.layoutPin
 }
 
 function restoreLayout(pin) {
@@ -552,16 +557,18 @@ async function main() {
   await quitPanel(c1, 'round-1')
   await sleep(5000)
 
-  // 线2 round-2：第二次冷启动
-  const c2 = await bootRound(2)
-  await quitPanel(c2, 'round-2')
-  await sleep(5000)
+  if (!clicksOnly) {
+    // 线2 round-2：第二次冷启动
+    const c2 = await bootRound(2)
+    await quitPanel(c2, 'round-2')
+    await sleep(5000)
 
-  // 线2 round-3：第三次冷启动 + 同实例承载线1 CPU 长测
-  const c3 = await bootRound(3)
-  await sleep(3000)
-  if (!skipCpu) await cpuLong(c3)
-  await quitPanel(c3, 'round-3')
+    // 线2 round-3：第三次冷启动 + 同实例承载线1 CPU 长测
+    const c3 = await bootRound(3)
+    await sleep(3000)
+    if (!skipCpu) await cpuLong(c3)
+    await quitPanel(c3, 'round-3')
+  }
 
   restoreLayout(pin)
   envProbe('post')
