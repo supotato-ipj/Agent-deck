@@ -1,9 +1,21 @@
 /** hermes 扫描器：state.db（sessions 表）+ runtime/active_sessions.json 租约。 */
 import fs from 'node:fs'
 import path from 'node:path'
-import { openReadOnly } from './sqlite'
+import type { DatabaseSync } from 'node:sqlite'
+import { openReadOnly, SqlitePool } from './sqlite'
 import { ACTIVE_WINDOW, RUNNING_WINDOW, dirName, makeSession } from './types'
 import type { SessionInfo } from './types'
+
+/** 池化读取缺省缝（工单477 束②）：传池复用连接，不传保持逐轮开合（离线一次性用同形） */
+function readDb<T>(dbPath: string, pool: SqlitePool | undefined, fn: (db: DatabaseSync) => T): T {
+  if (pool) return pool.withReadOnly(dbPath, fn)
+  const db = openReadOnly(dbPath)
+  try {
+    return fn(db)
+  } finally {
+    db.close()
+  }
+}
 
 /** 活跃租约里的会话 id 集合；租约文件坏了只当没有，不连累整工具 */
 function hermesLeases(root: string): Set<string> {
@@ -30,17 +42,12 @@ interface HermesRow {
   archived: unknown
 }
 
-export function scanHermes(root: string, now: number): SessionInfo[] {
+export function scanHermes(root: string, now: number, pool?: SqlitePool): SessionInfo[] {
   const leases = hermesLeases(root)
-  const db = openReadOnly(path.join(root, 'state.db'))
-  let rows: HermesRow[]
-  try {
-    rows = db.prepare(
+  const rows = readDb(path.join(root, 'state.db'), pool, (db) =>
+    db.prepare(
       'SELECT id, cwd, last_activity_at, started_at, end_reason, archived FROM sessions',
-    ).all() as unknown as HermesRow[]
-  } finally {
-    db.close()
-  }
+    ).all() as unknown as HermesRow[])
   const sessions: SessionInfo[] = []
   for (const row of rows) {
     if (row.archived) continue

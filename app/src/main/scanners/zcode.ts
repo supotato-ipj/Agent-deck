@@ -1,8 +1,20 @@
 /** zcode 扫描器：cli/db/db.sqlite（session + todo 表）。子代理会话噪音过大（票 07）不入列。 */
 import path from 'node:path'
-import { openReadOnly } from './sqlite'
+import type { DatabaseSync } from 'node:sqlite'
+import { openReadOnly, SqlitePool } from './sqlite'
 import { ACTIVE_WINDOW, RUNNING_WINDOW, dirName, makeSession } from './types'
 import type { SessionInfo } from './types'
+
+/** 池化读取缺省缝（工单477 束②）：传池复用连接，不传保持逐轮开合（离线一次性用同形） */
+function readDb<T>(dbPath: string, pool: SqlitePool | undefined, fn: (db: DatabaseSync) => T): T {
+  if (pool) return pool.withReadOnly(dbPath, fn)
+  const db = openReadOnly(dbPath)
+  try {
+    return fn(db)
+  } finally {
+    db.close()
+  }
+}
 
 export const ZCODE_SUBAGENT_PREFIX = 'sess_subagent_'
 
@@ -19,19 +31,15 @@ interface TodoRow {
   total: unknown
 }
 
-export function scanZcode(root: string, now: number): SessionInfo[] {
-  const db = openReadOnly(path.join(root, 'cli', 'db', 'db.sqlite'))
-  let rows: ZcodeSessionRow[]
-  let todoRows: TodoRow[]
-  try {
-    rows = db.prepare('SELECT id, directory, time_updated, time_archived FROM session').all() as unknown as ZcodeSessionRow[]
+export function scanZcode(root: string, now: number, pool?: SqlitePool): SessionInfo[] {
+  const { rows, todoRows } = readDb(path.join(root, 'cli', 'db', 'db.sqlite'), pool, (db) => {
+    const sessionRows = db.prepare('SELECT id, directory, time_updated, time_archived FROM session').all() as unknown as ZcodeSessionRow[]
     // 列别名只为 node:sqlite 的结果对象命名，聚合语义与 Python 完全一致
-    todoRows = db.prepare(
+    const todoRows = db.prepare(
       "SELECT session_id AS session_id, SUM(status = 'completed') AS done, COUNT(*) AS total FROM todo GROUP BY session_id",
     ).all() as unknown as TodoRow[]
-  } finally {
-    db.close()
-  }
+    return { rows: sessionRows, todoRows }
+  })
   const counts = new Map<string, [number | null, number]>()
   for (const t of todoRows) {
     // SUM 对全 NULL 组返回 NULL——Python 侧同样落 None，保持空值语义
@@ -77,15 +85,10 @@ interface ZcodePreviewSqlRow {
   time_archived: unknown
 }
 
-/** @param nowMs 墙钟毫秒（与 lastActivityMs 同单位） */
-export function zcodePreviewRows(root: string, nowMs: number): ZcodePreviewRow[] {
-  const db = openReadOnly(path.join(root, 'cli', 'db', 'db.sqlite'))
-  let rows: ZcodePreviewSqlRow[]
-  try {
-    rows = db.prepare('SELECT id, directory, title, time_updated, time_archived FROM session').all() as unknown as ZcodePreviewSqlRow[]
-  } finally {
-    db.close()
-  }
+/** @param nowMs 墙钟毫秒（与 lastActivityMs 同单位）；@param pool 会话预览服务的池化缝（缺省逐轮开合） */
+export function zcodePreviewRows(root: string, nowMs: number, pool?: SqlitePool): ZcodePreviewRow[] {
+  const rows = readDb(path.join(root, 'cli', 'db', 'db.sqlite'), pool, (db) =>
+    db.prepare('SELECT id, directory, title, time_updated, time_archived FROM session').all() as unknown as ZcodePreviewSqlRow[])
   const out: ZcodePreviewRow[] = []
   for (const row of rows) {
     const sid = String(row.id)

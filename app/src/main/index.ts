@@ -1,4 +1,4 @@
-import { app, BrowserWindow, screen, shell } from 'electron'
+import { app, BrowserWindow, globalShortcut, screen, shell } from 'electron'
 import type { Tray } from 'electron'
 import { spawn } from 'node:child_process'
 import fs from 'node:fs'
@@ -13,6 +13,7 @@ import { HotzoneTracker } from './hotzone'
 import { createPanelWindow } from './panel-window'
 import { hwndOf } from './win32'
 import { startTaskbarController } from './taskbar/window'
+import { ESCAPE_HATCH_HOTKEY } from './taskbar/escape-hatch'
 import { startCapsuleController } from './desktop/capsule-window'
 import { startTilePromptController } from './desktop/tile-prompt-window'
 import { startPreviewWindowController } from './desktop/preview-window'
@@ -751,6 +752,24 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
   const taskbarCtl = startTaskbarController({ ctx: kernel, log })
   app.on('before-quit', () => taskbarCtl.dispose())
 
+  // 逃生口手动热键（工单480，ADR-0032 保险丝）：全局热键随时强制还原原生任务栏——
+  // 防自动检测（哨兵失能档/崩溃入口）本身失灵的退路；再按恢复接管（toggle 语义）。
+  // 热键在主进程（globalShortcut），渲染层瘫痪时照常可达。注册失败（被占用）只落存证
+  // 不破启动——保险丝缺位是可取证的功能缺失，不是启动事故。
+  // 工单481 合并注：热键块随 #480 并入；此处旧的两段式 followTargets 首段随骨架重排
+  // 并入下方单次注册（面板/条带/胶囊/预览四窗一并供给），语义等价。
+  const hotkeyArmed = (() => {
+    try {
+      return globalShortcut.register(ESCAPE_HATCH_HOTKEY, () => taskbarCtl.escapeHatch({ kind: 'manual' }))
+    } catch {
+      return false
+    }
+  })()
+  log?.append({ type: hotkeyArmed ? 'escape-hatch-hotkey-armed' : 'escape-hatch-hotkey-denied', accelerator: ESCAPE_HATCH_HOTKEY })
+  app.on('before-quit', () => {
+    try { globalShortcut.unregister(ESCAPE_HATCH_HOTKEY) } catch { /* 尽力 */ }
+  })
+
   // 顶部窗口胶囊（工单376）：随工作区模式建/销（agent 才在场）；整窗穿透，仅右侧
   // 恢复按钮热区接收点击（工单378）。
   const capsuleCtl = startCapsuleController({ ctx: kernel, log })
@@ -856,7 +875,12 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
   })
   // 渲染层活性心跳武装（#91）：面板窗接 2s 心跳（deck:host-beat，渲染层 main.ts 起拍），
   // 哨兵失能档只在武装态发射。任务栏条带不接（观测口径不变，epic 暂停期不碰）。
-  wireHostIpc(win, tracker, log, { sentinelHeartbeat: true })
+  // 逃生口入口（工单480）：失能档/崩溃/恢复三事件同拍交任务栏控制器——面板瘫痪期
+  // 原生任务栏自动还原、恢复后重新接管（判据在 taskbar/escape-hatch.ts 纯函数）。
+  wireHostIpc(win, tracker, log, {
+    sentinelHeartbeat: true,
+    onEscapeEntry: (entry) => taskbarCtl.escapeHatch(entry),
+  })
   // 启动阶段戳（工单473）：窗与宿主通道接线完成——生产形态哨兵自此武装在证
   //（sentinel-armed 随本拍落常驻档，零注入也不再是取证盲区）。
   bootPhase('window-wired')
