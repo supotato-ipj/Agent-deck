@@ -207,8 +207,10 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
   // 自启项（工单11）：Startup 快捷方式由面板自举，且每次启动顺手清掉旧看门狗链的自启项。
   // 只有 config.autostart.appDir 声明的生产安装位置才有权新建/接管（开发 worktree 不劫持）。
   // 失败不拦启动——自启项写不进去不该挡住桌面。
+  // 工单481：applyAutostart 已异步化（helper 超时终止进程降级）——本切片先保持调用位次，
+  // 骨架屏重排切片把它改为「发起不等待」的后补步（boot-sequence 计划 autostart-apply）。
   try {
-    applyAutostart({
+    await applyAutostart({
       enabled: config.autostart.enabled,
       appDir: config.autostart.appDir,
       runningAppDir: app.getAppPath(),
