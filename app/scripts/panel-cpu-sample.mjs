@@ -39,15 +39,17 @@ if (!cores) {
   process.exit(2)
 }
 
-/** 进程树采集 + TotalProcessorTime 快照（PowerShell 单次调用，JSON 回读） */
+/** 进程树采集 + TotalProcessorTime 快照（PowerShell 单次调用，JSON 回读）。
+ * 树遍历用索引游标 BFS（PS 数组无 Pop——成员枚举会把方法调用下放到元素上，Int32 元素
+ * 即报「Int32 无 Pop」，实测踩坑见 docs/audit/2026-11-14-t475-window-enum-family.md） */
 function snapshot(rootPid) {
   const ps = `
 $ErrorActionPreference='Stop'
 $all = Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId
 $byParent = @{}
 foreach ($p in $all) { if (-not $byParent.ContainsKey([int]$p.ParentProcessId)) { $byParent[[int]$p.ParentProcessId]=@() }; $byParent[[int]$p.ParentProcessId]+=[int]$p.ProcessId }
-$out=@(); $stack=@(${rootPid})
-while ($stack.Count -gt 0) { $id=$stack.Pop(); if ($out -contains $id) { continue }; $out+=$id; if ($byParent.ContainsKey($id)) { foreach($c in $byParent[$id]){ $stack+=$c } } }
+$out=@(); $queue=@(${rootPid}); $i=0
+while ($i -lt $queue.Count) { $id=$queue[$i]; $i++; if ($out -contains $id) { continue }; $out+=$id; if ($byParent.ContainsKey($id)) { $queue+=$byParent[$id] } }
 $procs = Get-Process -Id $out -ErrorAction SilentlyContinue | Select-Object Id,@{n='cpuMs';e={$_.TotalProcessorTime.TotalMilliseconds}}
 [pscustomobject]@{ pids=@($procs | ForEach-Object { [pscustomobject]@{ id=[int]$_.Id; cpuMs=[double]$_.cpuMs } }) } | ConvertTo-Json -Depth 4 -Compress
 `
