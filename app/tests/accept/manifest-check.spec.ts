@@ -459,8 +459,8 @@ describe('真仓库现状全绿（CI 执行力所在，工单115）', () => {
     // ≤1s「启动中」DOM 态真机计时 → 启动命令回执 issuedMs 事件戳 ≤1s → 探针窗出场运行
     // 条目上栏且启动中态消失（收敛）。点击到「启动中」的端到端时延、事件戳入常驻日志的
     // 真实在档、真实窗口出场驱动的状态机收敛是单测断不到的输入注入/事件存证面（增段
-    // 条件①）；状态机纯函数由 launch-feedback.spec 9 例钉（增段条件②）。estSeconds=20
-    // 为种入后段内实跑预估，随本轮 guard 托管轮段账 took= 校准；预算 228→248 ≤ 250 未上调）。
+    // 条件①）；状态机纯函数由 launch-feedback.spec 10 例钉（增段条件②）。estSeconds=10
+    // 按 guard 托管健康轮段账 took=6.1s 校准（round 11 实跑）；预算 228→238 ≤ 250 未上调）。
     expect(total).toBe(199)
     for (const b of manifest!.batteries.filter((x) => x.kind !== 'experiment')) {
       for (const s of b.segments || []) {

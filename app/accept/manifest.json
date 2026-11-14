@@ -948,7 +948,7 @@
             "input-injection",
             "event-evidence"
           ],
-          "estSeconds": 20,
+          "estSeconds": 10,
           "areas": [
             "taskbar"
           ]
