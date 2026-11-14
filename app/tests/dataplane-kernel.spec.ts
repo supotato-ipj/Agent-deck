@@ -43,6 +43,40 @@ function desktopOpts(dir: string) {
 }
 
 describe('数据面内核（采集子进程的服务装配）', () => {
+  it('会话扫描降频（工单477 束①）：会话按 sessionIntervalMs 到期才刷新——扫描拍内新会话不随快照即时上表，到期后一个扫描周期+一拍内必上表', async () => {
+    const dir = tmpDir()
+    const root = path.join(dir, 'qoder')
+    const fx = new QoderFx(root)
+    fx.now = Date.now() / 1000
+
+    const snapshots: DataplaneSnapshot[] = []
+    const ctx = createDataplaneKernel({
+      sessionRoots: { qoder: root },
+      hardwareSources: fakeHardware(),
+      tickIntervalMs: 10,
+      sessionIntervalMs: 250, // 扫描拍 250ms（拍长 10ms；余量放宽给 Windows 定时器抖动）
+      hardwareIntervalMs: 0,
+      usageIntervalMs: 0,
+      onSnapshot: (s) => snapshots.push(s),
+    })
+    await ctx.start()
+    try {
+      await new Promise((r) => setTimeout(r, 50))
+      // 扫描拍未到（首次到期在 ~250ms）：此刻新会话就算已落盘也不上表——不随每拍快照即时刷新
+      fx.addSession('probe', 5, [rec('assistant', 'text', 'D:/work/probe')])
+      await new Promise((r) => setTimeout(r, 60)) // t≈110ms+抖动，仍距到期线 ~140ms
+      const beforeDue = snapshots.filter((s) => s.sessions.some((x) => x.id === 'probe'))
+      expect(beforeDue.length).toBe(0)
+      await new Promise((r) => setTimeout(r, 250)) // t≈360ms+抖动 ≥ 周期+一拍：必已上表
+      const afterDue = snapshots.filter((s) => s.sessions.some((x) => x.id === 'probe'))
+      expect(afterDue.length).toBeGreaterThan(0)
+      // 快照本身仍在走（桌面/硬件段每拍刷新不受会话降频拖累）
+      expect(snapshots.length).toBeGreaterThan(5)
+    } finally {
+      await ctx.stop()
+    }
+  })
+
   it('采样轮出口给完整快照段：时钟/会话/硬件/桌面（图标面缺席不影响扫描编排；qoder 段随工单03 退役）', async () => {
     const dir = tmpDir()
     fs.writeFileSync(path.join(dir, 'user', 'Probe.lnk'), 'stub')
@@ -67,6 +101,7 @@ describe('数据面内核（采集子进程的服务装配）', () => {
       },
       desktop: desktopOpts(dir),
       tickIntervalMs: 10,
+      sessionIntervalMs: 10,
       hardwareIntervalMs: 10,
       usageIntervalMs: 0,
       onSnapshot: (s) => snapshots.push(s),
