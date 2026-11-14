@@ -455,12 +455,19 @@ describe('真仓库现状全绿（CI 执行力所在，工单115）', () => {
     // 面板真在写 userData 形落点」与「真机轮转链实际收口」是单测断不到的系统状态面
     // （投影/轮转裁决纯函数与写入器已由 resident-event-log.spec 28 例钉，增段条件②），
     // 增段条件①；段内隔离落点 DECK_RESIDENT_EVENT_LOG 不写用户生产常驻档）。
-    // 198 → 199：工单482 增段——49-taskbar 电池增 P28（explorer 图标点击通道，#478 定谳
+    // 198 → 200：工单480 增段——50-taskbar-carry 电池增 D1/D2（逃生口真机链路，ADR-0032
+    // 韧性基线：D1 忙环注入面板冻结失能档 → 原生任务栏自动还原且开始菜单可达真机演示 +
+    // 还原账清账 → 心跳回归重新接管 + 落盘账重建；D2 面板健康时全局热键保险丝强制还原 →
+    // 再按恢复接管——「原生栏真的回来且系统入口真的可用」「还原账两向真的清/建」与「热键
+    // 组合键真的全局可达」是单测断不到的系统状态与输入链路面（触发判据纯函数已由
+    // escape-hatch.spec 31 例钉，增段条件②），增段条件①；C2 计数窗同步收窄排除 D 相位，
+    // 断言意图不变——每接管生命周期恰一次 set + 一次 restored、零中间态写入）。
+    // 200 → 201：工单482 增段——49-taskbar 电池增 P28（explorer 图标点击通道，#478 定谳
     // 修复定向段：无窗点击→新开「此电脑」、有窗置前两端到端臂——真实 spawn 通道窗口语义
     // （CabinetWClass + This PC/此电脑 标题）与点击→置前的前台链是单测断不到的系统状态面
     // （路由纯函数与服务层通道选择已由 launch-route/explorer-launch spec 钉，增段条件②），
     // 增段条件①；点击入口在场由轮起笔手钉保障（缺位代写、清场摘除，不污染用户存储））。
-    expect(total).toBe(199) // estSeconds 8→3 校准（r1 实跑 took≈0.5s，guard 托管轮段账佐证）
+    expect(total).toBe(201) // estSeconds 8→3 校准（r1 实跑 took≈0.5s，guard 托管轮段账佐证）
     for (const b of manifest!.batteries.filter((x) => x.kind !== 'experiment')) {
       for (const s of b.segments || []) {
         const eff = (s.areas && s.areas.length) ? s.areas : (b.areas || [])

@@ -38,6 +38,11 @@ export interface SearchServiceOptions {
   everythingPort?: number
   /** 单页结果数（旧引擎 DEFAULT_LIMIT 先例） */
   limit?: number
+  /**
+   * 泵沿回调（工单477 束④）：引擎链路泵只有活动态需要——沿出即装配层起/停泵定时器
+   * （生产 panel-kernel 起停 50ms 泵，待机零空转定时器）。缺省无沿（离线装配手动 tick 同旧）。
+   */
+  onPump?: (active: boolean) => void
   deps?: Partial<SearchDeps>
 }
 
@@ -54,6 +59,7 @@ export class SearchService extends Service {
   private readonly port: number
   private readonly limit: number
   private readonly deps: SearchDeps
+  private readonly onPump: ((active: boolean) => void) | null
   /** 机器态（PanelStateMachine 移植）：待机 ⇄ 活动；offline 是活动态的派生显示 */
   private machine: 'idle' | 'active' = 'idle'
   private offlineShown = false
@@ -66,11 +72,14 @@ export class SearchService extends Service {
   private lastResults: SearchResults | null = null
   /** 已推送的派生态：初值 idle（服务以待机出生，无需开机推送） */
   private pushed: SearchUiState | null = 'idle'
+  /** 泵持有态（束④）：活动态持有，退待机/拆卸释放——沿只沿变化出，不重发 */
+  private pumpHeld = false
 
   constructor(ctx: Context, options: SearchServiceOptions = {}) {
     super(ctx, 'search')
     this.port = options.port ?? BASE_PORT
     this.limit = options.limit ?? DEFAULT_LIMIT
+    this.onPump = options.onPump ?? null
     // 默认查询真源 = 引擎选择器装配（工单13）；服务状态机保持引擎无感
     const engineSearch = createEngineSearch({
       engine: options.engine ?? DEFAULT_ENGINE,
@@ -85,6 +94,10 @@ export class SearchService extends Service {
     }
     ctx.on('dispose', () => {
       this.gen += 1 // 内核拆卸：在途响应作废
+      if (this.pumpHeld) {
+        this.pumpHeld = false
+        this.onPump?.(false) // 拆卸泵必停（装配层随 ctx dispose 也会拆，沿出双保险）
+      }
     })
   }
 
@@ -94,6 +107,8 @@ export class SearchService extends Service {
       this.machine = 'active'
       this.query = ''
       this.pushState()
+      this.pumpHeld = true
+      this.onPump?.(true) // 泵沿（束④）：装配层由此起引擎链路泵
     }
     return this.derivedState()
   }
@@ -101,6 +116,7 @@ export class SearchService extends Service {
   /** ESC/失焦退回待机：清查询词、作废在途响应、清退避与离线显示——下次激活从空查询开始
    * （离线徽标只在真实查询失败后出现，不跨激活残留——旧面板语义） */
   deactivate(): SearchUiState {
+    const wasActive = this.machine === 'active'
     this.machine = 'idle'
     this.gen += 1
     this.debouncer.reset()
@@ -110,6 +126,10 @@ export class SearchService extends Service {
     this.lastResults = null
     this.offlineShown = false
     this.pushState()
+    if (wasActive) {
+      this.pumpHeld = false
+      this.onPump?.(false) // 泵沿（束④）：退待机装配层停泵
+    }
     return this.derivedState()
   }
 

@@ -23,9 +23,22 @@
  */
 import fs from 'node:fs'
 import path from 'node:path'
-import { openReadOnly } from './sqlite'
+import type { DatabaseSync } from 'node:sqlite'
+import { openReadOnly, SqlitePool } from './sqlite'
 import { readTail } from './qoder'
 import { ACTIVE_WINDOW } from './types'
+
+/** 池化读取缺省缝（工单477 束②）：传池复用连接，不传保持逐轮开合。WAL 活跃库的
+ * 轮换上限在池侧（SQLITE_POOL_MAX_AGE_MS）——长持只读连接会钉住写方的 WAL 回收。 */
+function readDb<T>(dbPath: string, pool: SqlitePool | undefined, fn: (db: DatabaseSync) => T): T {
+  if (pool) return pool.withReadOnly(dbPath, fn)
+  const db = openReadOnly(dbPath)
+  try {
+    return fn(db)
+  } finally {
+    db.close()
+  }
+}
 
 /** MiniMax Code 单条会话的只读探针行（工单374 输入契约；标题/项目缺真值给 null，不拿目录名顶替） */
 export interface MinimaxSessionProbe {
@@ -64,19 +77,15 @@ export function minimaxHistoryDirName(sessionId: string): string {
  * 只读探针 MiniMax Code 会话主账本。任何一步失败（缺库/坏库/被写方独占）整工具空集，
  * 与既有扫描器的静默跳过同语义。按 lastActivityMs 降序、null 殿后（确定性排序）。
  */
-export function probeMinimaxSessions(root: string): MinimaxSessionProbe[] {
+export function probeMinimaxSessions(root: string, pool?: SqlitePool): MinimaxSessionProbe[] {
   let rows: MinimaxRow[]
   const dbPath = minimaxSessionsDb(root)
   try {
     if (!fs.statSync(dbPath).isFile()) return []
-    const db = openReadOnly(dbPath)
-    try {
-      rows = db.prepare(
+    rows = readDb(dbPath, pool, (db) =>
+      db.prepare(
         'SELECT session_id, title, workspace_dir, updated_at_ms, status, archived FROM local_runtime_sessions',
-      ).all() as unknown as MinimaxRow[]
-    } finally {
-      db.close()
-    }
+      ).all() as unknown as MinimaxRow[])
   } catch {
     return []
   }
@@ -115,10 +124,10 @@ export interface MinimaxPreviewRow {
   lastActivityMs: number
 }
 
-/** @param nowMs 墙钟毫秒（与 lastActivityMs 同单位） */
-export function minimaxcodePreviewRows(root: string, nowMs: number): MinimaxPreviewRow[] {
+/** @param nowMs 墙钟毫秒（与 lastActivityMs 同单位）；@param pool 会话预览服务的池化缝 */
+export function minimaxcodePreviewRows(root: string, nowMs: number, pool?: SqlitePool): MinimaxPreviewRow[] {
   const out: MinimaxPreviewRow[] = []
-  for (const probe of probeMinimaxSessions(root)) {
+  for (const probe of probeMinimaxSessions(root, pool)) {
     if (probe.lastActivityMs === null) continue
     if (nowMs / 1000 - probe.lastActivityMs / 1000 > ACTIVE_WINDOW) continue
     out.push({
