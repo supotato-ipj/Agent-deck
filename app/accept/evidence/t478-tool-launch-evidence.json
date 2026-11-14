@@ -1,0 +1,98 @@
+{
+  "startedAt": "2026-11-14T05:46:23.143Z",
+  "targets": [
+    {
+      "label": "MiniMax Code",
+      "exe": "D:\\Program\\MiniMax-code\\MiniMax Code\\MiniMax Code.exe",
+      "pidsBefore": [],
+      "runningBefore": false,
+      "panelSideMs": 6796,
+      "openPathResult": "(empty=success)",
+      "toolColdStartMs": 8790,
+      "totalClickToWindowMs": 15586,
+      "firstWindow": {
+        "hwnd": 2818626,
+        "cls": "Chrome_WidgetWin_1",
+        "title": "MiniMax Code"
+      },
+      "pidsSpawnedByProbe": [
+        4448,
+        12408,
+        13788,
+        23012,
+        26496,
+        28004,
+        28916,
+        35956
+      ]
+    },
+    {
+      "label": "ZCode",
+      "exe": "C:\\Program Files\\ZCode\\ZCode.exe",
+      "pidsBefore": [
+        3680,
+        8308,
+        12992,
+        15272,
+        15832,
+        15996,
+        19216,
+        22352,
+        23424,
+        23860,
+        24228,
+        24336,
+        24628,
+        24952,
+        25720,
+        27652,
+        29800,
+        30604,
+        32252
+      ],
+      "runningBefore": true,
+      "note": "已在运行（不重复拉起）；面板点击将走置前链路，本探针不计量置前",
+      "windowsBefore": [
+        {
+          "hwnd": 330212,
+          "cls": "Chrome_WidgetWin_1",
+          "title": "ZCode"
+        }
+      ]
+    },
+    {
+      "label": "Qoder CN",
+      "exe": "C:\\Users\\An W\\AppData\\Local\\Qoder CN\\Qoder CN Launcher\\Qoder CN Launcher.exe",
+      "pidsBefore": [],
+      "runningBefore": false,
+      "panelSideMs": 2344,
+      "openPathResult": "(empty=success)",
+      "toolColdStartMs": null,
+      "note": " 120s 内未见合格首窗",
+      "pidsSpawnedByProbe": []
+    }
+  ],
+  "residual": [
+    {
+      "label": "MiniMax Code",
+      "residualNewPids": [
+        12408,
+        26496,
+        28004,
+        35956
+      ],
+      "stillWindow": false
+    },
+    {
+      "label": "ZCode",
+      "residualNewPids": [],
+      "stillWindow": null
+    },
+    {
+      "label": "Qoder CN",
+      "residualNewPids": [],
+      "stillWindow": null
+    }
+  ],
+  "finishedAt": "2026-11-14T05:49:17.425Z"
+}

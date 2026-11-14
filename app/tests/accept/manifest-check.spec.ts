@@ -449,7 +449,46 @@ describe('真仓库现状全绿（CI 执行力所在，工单115）', () => {
     // 可见/已开再点置前不隐藏（窗语义 ADR-0018）——真实窗创建与前台语义是 jsdom 单测
     // 断不到的面，增段条件①；二态裁决/图标/分发本体由 taskbar renderer 单测族钉，增段
     // 条件②；busy 点亮不进段——需在途 turn 后端会话，重且不增信）。
-    expect(total).toBe(197) // estSeconds 8→3 校准（r1 实跑 took≈0.5s，guard 托管轮段账佐证）
+    // 197 → 198：工单473 增段——03-battery 电池增 P473（常驻事件日志，ADR-0032：零注入
+    // 生产形态默认开启、启动阶段耗时戳族在档、哨兵 sentinel-armed 生产形态武装在证、
+    // 种满三档到上限的真机轮转收口与磁盘总量有界、敏感内容零在档逐值扫描——「零注入
+    // 面板真在写 userData 形落点」与「真机轮转链实际收口」是单测断不到的系统状态面
+    // （投影/轮转裁决纯函数与写入器已由 resident-event-log.spec 28 例钉，增段条件②），
+    // 增段条件①；段内隔离落点 DECK_RESIDENT_EVENT_LOG 不写用户生产常驻档）。
+    // 198 → 200：工单479 增段——03-battery 电池增 P479B/P479 两段（拉回与冻结告警，ADR-0032）：
+    // P479B 冻结托盘告警（忙环注入失能档 → renderer-frozen 记账 + freeze-alarm 托盘告警恰一条
+    // shown=true + 无自动杀拉——真机托盘气球弹出与守卫未被惊动是单测断不到的面，增段条件①；
+    // 告警一次闩由 freeze-alarm.spec 钉，增段条件②）；P479 拉回（杀面板→守卫退避重拉+新代次
+    // 接管任务栏、连崩达上限→pullback-exhausted 留证+守卫终局退场+零越界重拉——真机进程
+    // 生死与任务栏接管是单测断不到的面，增段条件①；退避表/上限裁决由 pullback.spec 钉，
+    // 增段条件②）。裁决纯函数与守卫薄壳的分工见 pullback.ts 头注。
+    // 200 → 201：工单481 增段——03-battery 电池增 P481（骨架屏启动重排，ADR-0032：
+    // 隔离双面板断言启动时序——boot-phase 六相位族完整且单调（#473 契约保持）、骨架
+    // 接线与首显早于自启项维护完成（主线不等 PowerShell，#478④ 运行时证明）、条带窗
+    // 先于数据面首拍在场、首拍前桌面帧全空数据首拍后有填充帧（占位→原位填充）、
+    // workspace-start-gate 存证在档——真机启动链的窗口/数据时序是单测断不到的系统
+    // 状态面（先后序与上界的纯函数编排已由 boot-sequence.spec 15 例钉，增段条件②），
+    // 增段条件①；一段绑定一工单481，段内单配 config 开条带不触碰生产配置）。
+    // 201 → 203：工单480 增段——50-taskbar-carry 电池增 D1/D2（逃生口真机链路，ADR-0032
+    // 韧性基线：D1 忙环注入面板冻结失能档 → 原生任务栏自动还原且开始菜单可达真机演示 +
+    // 还原账清账 → 心跳回归重新接管 + 落盘账重建；D2 面板健康时全局热键保险丝强制还原 →
+    // 再按恢复接管——「原生栏真的回来且系统入口真的可用」「还原账两向真的清/建」与「热键
+    // 组合键真的全局可达」是单测断不到的系统状态与输入链路面（触发判据纯函数已由
+    // escape-hatch.spec 31 例钉，增段条件②），增段条件①；C2 计数窗同步收窄排除 D 相位，
+    // 断言意图不变——每接管生命周期恰一次 set + 一次 restored、零中间态写入）。
+    // 203 → 204：工单482 增段——49-taskbar 电池增 P28（explorer 图标点击通道，#478 定谳
+    // 修复定向段：无窗点击→新开「此电脑」、有窗置前两端到端臂——真实 spawn 通道窗口语义
+    // （CabinetWClass + This PC/此电脑 标题）与点击→置前的前台链是单测断不到的系统状态面
+    // （路由纯函数与服务层通道选择已由 launch-route/explorer-launch spec 钉，增段条件②），
+    // 增段条件①；点击入口在场由轮起笔手钉保障（缺位代写、清场摘除，不污染用户存储））。
+    // 204 → 205：工单483 增段——49-taskbar 电池增 P29（启动反馈；段号避让同电池工单482
+    // 的 P28——两票并行同号，本票改号让位）：真点击推荐位探针 → ≤1s「启动中」DOM 态真机
+    // 计时 → 启动命令回执 issuedMs 事件戳 ≤1s → 探针窗出场运行条目上栏且启动中态消失
+    // （收敛）。点击到「启动中」的端到端时延、事件戳入常驻日志的真实在档、真实窗口出场
+    // 驱动的状态机收敛是单测断不到的输入注入/事件存证面（增段条件①）；状态机纯函数由
+    // launch-feedback.spec 10 例钉（增段条件②）。estSeconds=10 按 guard 托管健康轮段账
+    // took=6.1s 校准（round 11 实跑）；预算 234+10=244 ≤ 250 未上调）。
+    expect(total).toBe(205) // estSeconds 8→3 校准（r1 实跑 took≈0.5s，guard 托管轮段账佐证）
     for (const b of manifest!.batteries.filter((x) => x.kind !== 'experiment')) {
       for (const s of b.segments || []) {
         const eff = (s.areas && s.areas.length) ? s.areas : (b.areas || [])
@@ -655,11 +694,14 @@ describe('文件级例外规则白名单（工单220：文件级规则不得被�
     expect(r.errors.some((e) => e.includes('缺 requiredFileRules 白名单'))).toBe(true)
   })
 
-  it('真仓库现状：40 条文件级例外规则逐条登记在白名单（删一条／改一域即判红）', () => {
+  it('真仓库现状：41 条文件级例外规则逐条登记在白名单（删一条／改一域即判红）', () => {
     const manifest = loadManifest()!
     const fileRules = (manifest.pathAreas || []).filter((r) => (r.path.split('/').pop() || '').includes('.'))
-    expect(fileRules.length).toBe(40)
-    expect(manifest.requiredFileRules!.length).toBe(40)
+    // 40 → 41：工单483 新增 app/src/renderer/launch-feedback.ts → taskbar（启动反馈状态机
+    // 纯函数，唯一消费者是 renderer/taskbar.ts 的条带渲染——不登记会落 app/src/renderer
+    // 默认 panel.core，改它时定向轮选不出 taskbar 段，耦合漏报）
+    expect(fileRules.length).toBe(41)
+    expect(manifest.requiredFileRules!.length).toBe(41)
     for (const req of manifest.requiredFileRules!) {
       const hit = fileRules.find((r) => r.path === req.path)
       expect(hit, `文件级例外规则 ${req.path} 已从映射表消失`).toBeTruthy()

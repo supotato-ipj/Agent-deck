@@ -12,7 +12,7 @@
 //        （路径①：面板 dispose 还账清账；可见性以退出后的控制器独立视图事实为准
 //        ——置位后 WS_VISIBLE 位被翻开且退出置位不回落，可见性复原由 appbar 复原
 //        本身达成、taskbar-restored 事件确证静默，R1 轮磁带 + spike 附记 + P9 判读）
-//     A3 崩溃路径（taskkill /F /T 面板树，守卫存活）→ 守卫以 panel-exit 双兜底
+//     A3 崩溃路径（taskkill /F /T 面板树，守卫存活）→ 守卫双兜底（工单479 起挂在拉回序列上，reason=pullback-respawn）
 //        （appbar 从落盘账复原——守卫不持面板内存账；可见性同上以视图事实为准）
 //     A4 进程被杀路径（守卫 + 面板先后强杀，控制台信号同杀的等价现场）→
 //        还原守护（icon-restore-watch）以 guard-dead 双兜底（appbar 从落盘账复原）
@@ -24,9 +24,14 @@
 //        普通档的禁用径由 B1（off 口径 destroy('disabled')）+ C2（restored 仅
 //        disabled/force 径）把关。
 //   阶段B（--panel-accept + CDP，逃生开关真机链路；config 钉 maximizeRetract=off——
-//         M1 下 off 只关收栏档，托管恒置位照走，off 口径由 C2 段把关）：
+//         M1 下 off 只关收栏档，托管恒置位照走，off 口径由 C2 把关）：
 //     B1 设置浮层关开关 → 原生任务栏即还原、条带销毁、config 落盘
 //     B2 再开 → 原生任务栏再隐、条带回来
+//   阶段D（工单480 逃生口真机链路，ADR-0032 韧性基线；与 B 同面板，接管在场出发）：
+//     D1 失能档（忙环注入面板冻结 ≈9s，P12 同款）→ 原生任务栏自动还原且开始菜单可达
+//        （真机演示）/还原账清账 → 心跳回归 → 重新接管（原生栏再隐、条带回来、账重建）
+//     D2 手动热键保险丝（面板健康时）：全局热键强制还原 → 再按恢复接管（toggle 语义）。
+//        C2 计数窗以 [sinceD, sinceDend) 排除 D 相位的接管生命周期（D 相位自记账）
 //   阶段C 偏好不扰（工单260 措辞收口）：首末两点比对 StuckRects3 Settings（自动隐藏等
 //      任务栏偏好）——断言「面板生命周期结束后字节复原」（C1 纪律口径，spec #258：
 //      实现本为首末两点比对，措辞与实现对齐）。
@@ -155,9 +160,10 @@ function stuckRectsSettings() {
 
 /**
  * 定点杀面板树（**只杀面板，不杀守卫**）：A3 崩溃路径的段前提就是「面板整树死、守卫存活」，
- * 守卫才能以 panel-exit 还原原生任务栏。**故此处不迁句柄 stop()**——句柄 stop() 会连带
- * 终结发射子进程（＝守卫载体），段前提不成立。「验证消失」由 A3 既有 waitExit(child, 15000)
- * 承担（守卫随面板死亡而退＝面板已死的证据）。
+ * 守卫才能还原原生任务栏（工单479 起挂在拉回序列上，reason=pullback-respawn）。**故此处不迁句柄 stop()**——句柄 stop() 会连带
+ * 终结发射子进程（＝守卫载体），段前提不成立。「验证消失」由段内 pid 存在性轮询直证
+ * （工单479 起守卫不再随面板死亡退场——拉回按退避重拉，「守卫随退」的旧证据链退役；
+ * 段末守卫链整树清场，防拉回代次污染下一段前置）。
  */
 function killTree(pid) {
   if (pid) spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore' });
@@ -209,6 +215,8 @@ async function runSegments() {
   let panelPid = 0;   // 面板真实主进程 pid（boot 自报）
   const refWins = []; // 控制器自持参照窗（中性 holder + 收栏触发窗），清场统一销毁
   let sinceOff = 0;   // off 口径时间门（B 相位起；0 = 未到 A4 收尾即异常，C2 按全程严格判）
+  let sinceD = 0;     // 逃生口相位时间门起点（工单480；C2 计数窗的排除窗左沿）
+  let sinceDend = 0;  // 排除窗右沿（D 相位走完落账；0 = D 未跑，C2 不排除任何事件）
   const finish = () => {
     const v = rep.verdict(rep.fails === 0 ? 'PASS' : 'FAIL');
     app.exit(v.fails === 0 ? 0 : 1);
@@ -294,7 +302,7 @@ async function runSegments() {
     }
     child = null;
 
-    // A3 崩溃路径（taskkill /F /T 面板树，守卫存活）→ 守卫 panel-exit 还原
+    // A3 崩溃路径（taskkill /F /T 面板树，守卫存活）→ 守卫双兜底（工单479 起 reason=pullback-respawn）
     rep.beginSegment('A3');
     const sinceA3 = Date.now();
     forceForeground(hwndOf(holder)); // holder 仍最大化——钉回前台，收栏在开拍即成立
@@ -311,20 +319,30 @@ async function runSegments() {
     const engagedA3 = await waitMs(() => (appbarState() & ABS_AUTOHIDE_BIT) !== 0, 5000);
     if (!retractEvA3 || engagedA3 < 0) throw new Error('A3 收栏档未达成（前置不成立）');
     killTree(panelPid); // 模拟崩溃/强杀：面板整树死，守卫存活（**不迁句柄**——见 killTree 注）
-    const guardExited3 = await waitExit(child, 15000);
+    // 工单479 改段说明（旧契约「守卫随面板退场」已退役）：拉回上线后面板异常退出不再是
+    // 守卫终局——守卫先走还原三兜底再按退避重拉（pullback-* 存证与上限断言归属 479 自己
+    // 的段）。「守卫随退=面板已死」的旧证据链随之退役，面板已死改由 pid 存在性直证。
+    const panelDead3 = await waitMs(() => !pidAlive(panelPid), 5000);
     const restoredA3 = await waitNativeVisible(true, 8000); // 可见性以控制器独立视图事实为准（置位形态，R1/P9 判读）
     // 工单261 断言：appbar 状态复原——面板被强杀（路径① 未走），守卫从**落盘账**读
     // 复原目标（不持面板内存账，票面「还原账全路径扩展」的路径② 现场证据）
     const appbarOkA3 = await waitMs(() => appbarState() === appbarBaseline, 8000);
     const autohideEvA3 = await tape.wait('taskbar-autohide-restored',
-      (e) => e.reason === 'panel-exit', { since: sinceA3, timeoutMs: 8000 });
-    if (restoredA3 && appbarOkA3 >= 0 && autohideEvA3) {
+      // 工单479 起崩溃径的守卫侧复原挂在拉回序列上：reason=pullback-respawn（还原→重拉），
+      // 旧 panel-exit 词只余干净退出径——两词都认，认的是「守卫从落盘账复原」这同一事实。
+      (e) => e.reason === 'panel-exit' || e.reason === 'pullback-respawn', { since: sinceA3, timeoutMs: 8000 });
+    if (restoredA3 && appbarOkA3 >= 0 && autohideEvA3 && panelDead3 >= 0) {
       rep.pass(`A3 崩溃路径：面板被 taskkill /F 后守卫双兜底（可见性=控制器独立视图事实 + appbar 落盘账复原`
-        + ` reason=panel-exit attempts=${autohideEvA3.attempts}，读数 ${appbarState()}＝基线 ${appbarBaseline}，守卫随退=${guardExited3}）`);
+        + ` reason=${autohideEvA3.reason} attempts=${autohideEvA3.attempts}，读数 ${appbarState()}＝基线 ${appbarBaseline}，面板已死=${panelDead3 >= 0}）`);
     } else {
       rep.fail(`A3 视图还原=${restoredA3} `
-        + `appbar复原=${appbarOkA3}ms 状态=${appbarState()}/${appbarBaseline} autohide存证=${JSON.stringify(autohideEvA3)} 守卫退=${guardExited3}`);
+        + `appbar复原=${appbarOkA3}ms 状态=${appbarState()}/${appbarBaseline} autohide存证=${JSON.stringify(autohideEvA3)} 面板已死=${panelDead3 >= 0}`);
     }
+    // 清场（工单479 下确定性必需）：还原证据落袋后立刻整树终结守卫——不清场则拉回的
+    // 退避定时器/重拉代次会在 A4 开拍前重新接管原生任务栏，污染 A4 前置。/T 连带清偿
+    // 在逃/在飞的拉回代次；守卫死后还原守护兜底（图标若被重拉代次重藏则翻回）。
+    spawnSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore' });
+    await waitExit(child, 5000);
     child = null;
 
     // A4 进程被杀路径：守卫 + 面板先后强杀（控制台信号同杀的等价现场——守卫进程内
@@ -419,7 +437,7 @@ async function runSegments() {
     }
     child = null;
 
-    // A6 崩溃路径（taskkill /F /T 面板树，守卫存活，普通态出发）→ 守卫 panel-exit 从落盘账复原
+    // A6 崩溃路径（taskkill /F /T 面板树，守卫存活，普通态出发）→ 守卫从落盘账复原（工单479 起 reason=pullback-respawn）
     rep.beginSegment('A6');
     const sinceA6 = Date.now();
     child = handle.launch({ mode: 'full', stdio: 'drain' }).child;
@@ -435,19 +453,27 @@ async function runSegments() {
       throw new Error(`A6 普通档前置不成立（接管=${!!takeEvA6} 置位=${!!setEvA6} 读回=${appbarState()} 收栏档=${straysA6.length}）`);
     }
     killTree(panelPid);
-    const guardExitedA6 = await waitExit(child, 15000);
+    // 工单479 改段说明（同 A3）：拉回上线后守卫不再随面板死亡退场，「守卫随退」证据链
+    // 退役，面板已死改由 pid 存在性直证；还原断言半边（工单50/261）原样保留。
+    const panelDead6 = await waitMs(() => !pidAlive(panelPid), 5000);
     const restoredA6 = await waitNativeVisible(true, 8000);
     const appbarOkA6 = await waitMs(() => appbarState() === appbarBaseline, 8000);
     const autohideEvA6 = await tape.wait('taskbar-autohide-restored',
-      (e) => e.reason === 'panel-exit', { since: sinceA6, timeoutMs: 8000 });
-    if (restoredA6 && appbarOkA6 >= 0 && autohideEvA6 && guardExitedA6) {
-      rep.pass(`A6 崩溃路径（普通态出发）：面板被 taskkill /F 后守卫 panel-exit 从落盘账复原（attempts=${autohideEvA6.attempts}，`
+      // 工单479 起崩溃径 reason=pullback-respawn（同 A3 注），旧词只余干净退出径——两词都认。
+      (e) => e.reason === 'panel-exit' || e.reason === 'pullback-respawn', { since: sinceA6, timeoutMs: 8000 });
+    if (restoredA6 && appbarOkA6 >= 0 && autohideEvA6 && panelDead6 >= 0) {
+      // 2026-11-14 双轴评审 L4 措辞同步（不改断言）：reason=panel-exit || pullback-respawn
+      // 两词都认（同 A3 注），pass 文案不再预认旧词——实际 reason 由存证帧给出。
+      rep.pass(`A6 崩溃路径（普通态出发）：面板被 taskkill /F 后守卫从落盘账复原（reason=${autohideEvA6.reason} attempts=${autohideEvA6.attempts}，`
         + `读数 ${appbarState()}＝基线 ${appbarBaseline}，控制器独立读数；账记于普通态接管建立拍）`
-        + `＋原生任务栏还原（视图事实，守卫随退=${guardExitedA6}）`);
+        + `＋原生任务栏还原（视图事实，面板已死=${panelDead6 >= 0}）`);
     } else {
       rep.fail(`A6 视图还原=${restoredA6} appbar复原=${appbarOkA6}ms 状态=${appbarState()}/${appbarBaseline} `
-        + `autohide存证=${JSON.stringify(autohideEvA6)} 守卫退=${guardExitedA6} 接管存证=${JSON.stringify(takeEvA6)}`);
+        + `autohide存证=${JSON.stringify(autohideEvA6)} 面板已死=${panelDead6 >= 0} 接管存证=${JSON.stringify(takeEvA6)}`);
     }
+    // 清场（工单479 下确定性必需，同 A3）：整树终结守卫，防拉回代次污染 A7 前置。
+    spawnSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore' });
+    await waitExit(child, 5000);
     child = null;
 
     // A7 进程被杀路径（守卫 + 面板先后强杀，普通态出发）→ 还原守护以 guard-dead 从落盘账复原后自退
@@ -538,6 +564,130 @@ async function runSegments() {
     } else {
       rep.fail(`B2 回执=${JSON.stringify(setEvOn)} 视图已隐=${nativeGoneB2} 条带回=${!!tbBackB2}`);
     }
+
+    // —— 阶段D：逃生口真机链路（工单480，ADR-0032 韧性基线）——
+    // 出发态 = B2 刚再开的接管在场（条带在、原生栏隐）。落盘账核对走 dist 的
+    // appbar-ledger（控制器与面板同 app 同 userData，appbarLedgerPath 同址——账目
+    // 核对以盘上事实为准，不依赖面板自证）。sinceD 落外层账（C2 排除窗左沿）。
+    sinceD = Date.now();
+    const { appbarLedgerPath } = require(path.join(APP_ROOT, 'dist', 'main', 'taskbar', 'appbar-ledger.js'));
+    const ledgerFile = appbarLedgerPath();
+    const ledgerIs = async (want, timeoutMs) => {
+      const t0 = Date.now();
+      while (Date.now() - t0 < timeoutMs) {
+        if (fs.existsSync(ledgerFile) === want) return true;
+        await sleep(120);
+      }
+      return fs.existsSync(ledgerFile) === want;
+    };
+    const isStartMenuFg = (i) => i.cls === 'Windows.UI.Core.CoreWindow'
+      && (i.exe === 'startmenuexperiencehost' || i.exe === 'searchhost');
+    const foregroundInfoD = () => {
+      const h = Number(win32.GetForegroundWindow());
+      return h ? { hwnd: h, cls: win32.className(h), exe: win32.exeNameOfWindow(h) } : null;
+    };
+    const waitForegroundD = async (pred, timeoutMs) => {
+      const deadline = Date.now() + timeoutMs;
+      while (Date.now() < deadline) {
+        const info = foregroundInfoD();
+        if (info && pred(info)) return info;
+        await sleep(100);
+      }
+      return null;
+    };
+
+    // D1 失能档 → 自动还原 → 可见可用（开始菜单可达，真机演示）→ 恢复 → 重新接管。
+    // 忙环注入 fire-and-forget（evaluate 即回、渲染层随后阻塞 ≈9s——心跳断流，静默档
+    // ≈5s、失能档 ≈7s 依次发射；P12 同款手法）：失能档发射同拍开逃生口 = 交还三件套
+    // reason=escape-hatch（appbar 置位退场写回 + 落盘账清账 + 原生栏可见性复原）；忙环
+    // 结束首个心跳闭合 episode = 重新接管（原生栏再隐、条带回来、落盘账重建）。接管/
+    // 还原账目两向核对（opened/restored/closed/takeover 存证 + 盘上账本首末两态）。
+    rep.beginSegment('D1');
+    {
+      if (!findWindow(panelPid, TASKBAR_TITLE)) throw new Error('D1 前置不成立：条带不在场（B2 再开未成功）');
+      const t0 = Date.now();
+      await cdpEval(`(() => { setTimeout(() => { const t0 = performance.now(); while (performance.now() - t0 < 9000); }, 0); return 'busy-scheduled'; })()`);
+      const openedEv = await tape.wait('escape-hatch-opened', (e) => e.entry === 'frozen', { since: t0, timeoutMs: 20000 });
+      const restoredEv = await tape.wait('taskbar-autohide-restored', (e) => e.reason === 'escape-hatch', { since: t0, timeoutMs: 10000 });
+      const nativeBack = await waitNativeVisible(true, 12000);
+      const ledgerClean = await ledgerIs(false, 6000);
+      let stripGone = false;
+      for (let i = 0; i < 25 && !stripGone; i++) { await sleep(200); stripGone = !findWindow(panelPid, TASKBAR_TITLE); }
+      // 真机演示（票面验收标准①）：逃生口在场（条带已销）期间系统入口可达——Win 键
+      // 唤出开始菜单（前台易主 startmenuexperiencehost/searchhost，49 电池 P4 同款
+      // 前台宿主判据）。不走坐标点原生开始区：本机用户偏好 autohide（appbar 读回=1，
+      // 原生栏还原后驻屏缘滑入态）+ Win11 居中栏位，坐标点击落不中滑出的栏——键位
+      // 入口才是可达性的真判据（可见性已由 waitNativeVisible 独立断言）。
+      let startFg = null;
+      if (nativeBack) {
+        const before = foregroundInfoD();
+        win32.tapKeys([0x5B]); // VK_LWIN：唤出开始菜单
+        startFg = await waitForegroundD(isStartMenuFg, 8000);
+        win32.tapKeys([0x5B]); // 再按收起（Start 对 Win 键 toggle 响应，还桌面干净现场）
+        await sleep(600);
+        rep.note(`D1 开始菜单演示：前台 ${JSON.stringify(before)} → ${JSON.stringify(startFg)}`);
+      }
+      // 恢复半边：忙环结束（≈9s）首个心跳闭合 → 逃生口收口 → 重新接管
+      const unfrozenEv = await tape.wait('renderer-unfrozen', undefined, { since: t0, timeoutMs: 25000 });
+      const closedEv = await tape.wait('escape-hatch-closed', (e) => e.trigger === 'recovered', { since: t0, timeoutMs: 10000 });
+      const retakeEv = await tape.wait('taskbar-autohide-takeover', undefined, { since: t0, timeoutMs: 10000 });
+      const nativeGone = await waitNativeVisible(false, 12000);
+      let stripBack = false;
+      for (let i = 0; i < 25 && !stripBack; i++) { await sleep(200); stripBack = !!findWindow(panelPid, TASKBAR_TITLE); }
+      const ledgerRebuilt = await ledgerIs(true, 6000);
+      if (openedEv && restoredEv && nativeBack && ledgerClean && stripGone && startFg
+        && unfrozenEv && closedEv && retakeEv && nativeGone && stripBack && ledgerRebuilt) {
+        rep.pass(`D1 逃生口·失能档全链：忙环冻结 → renderer-frozen 同拍开逃生口（原生栏还原，reason=escape-hatch）`
+          + `＋开始菜单可达（前台易主 ${startFg.exe}）＋还原账清账（盘上账本离场）；心跳回归 → 重新接管`
+          + `（原生栏再隐、条带回来、接管建立记账、盘上账本重建）——恢复后重新接管、还原账两向干净成立`);
+      } else {
+        rep.fail(`D1 开口=${JSON.stringify(openedEv)} 还原=${JSON.stringify(restoredEv)} 原生可见=${nativeBack} `
+          + `账清=${ledgerClean} 条带销=${stripGone} 开始菜单=${JSON.stringify(startFg)} 闭合=${JSON.stringify(unfrozenEv)} `
+          + `收口=${JSON.stringify(closedEv)} 重接管=${JSON.stringify(retakeEv)} 原生再隐=${nativeGone} 条带回=${stripBack} 账重建=${ledgerRebuilt}`);
+      }
+    }
+
+    // D2 手动热键保险丝（票面验收标准③，面板健康时）：全局热键强制还原原生栏
+    // （保险丝语义——防自动检测本身失灵）；再按恢复接管（toggle 语义）。键序与主进程
+    // globalShortcut 同串解析（dist 的 ESCAPE_HATCH_HOTKEY），SendInput 合成系统级
+    // 组合键——RegisterHotKey 全局可达，不依赖焦点。
+    rep.beginSegment('D2');
+    {
+      const { ESCAPE_HATCH_HOTKEY } = require(path.join(APP_ROOT, 'dist', 'main', 'taskbar', 'escape-hatch.js'));
+      const VK_MOD = { CONTROL: 0x11, ALT: 0x12, SHIFT: 0x10, META: 0x5B, SUPER: 0x5B, COMMAND: 0x5B };
+      const parts = String(ESCAPE_HATCH_HOTKEY).split('+');
+      const mods = parts.slice(0, -1).map((p) => VK_MOD[p.toUpperCase()]);
+      const keyVk = parts[parts.length - 1].toUpperCase().charCodeAt(0);
+      if (!mods.length || !keyVk) throw new Error(`D2 键序解析失败：${ESCAPE_HATCH_HOTKEY}`);
+      const chord = () => {
+        win32.send([...mods.map((vk) => win32.keyInput(vk, win32.KEYDOWN)), win32.keyInput(keyVk, win32.KEYDOWN)]);
+        win32.send([win32.keyInput(keyVk, win32.KEYUP), ...mods.map((vk) => win32.keyInput(vk, win32.KEYUP))]);
+      };
+      if (!findWindow(panelPid, TASKBAR_TITLE)) throw new Error('D2 前置不成立：条带不在场（D1 重接管未成功）');
+      const t0 = Date.now();
+      chord();
+      const openedM = await tape.wait('escape-hatch-opened', (e) => e.entry === 'manual', { since: t0, timeoutMs: 6000 });
+      const nativeBackM = await waitNativeVisible(true, 8000);
+      const ledgerCleanM = await ledgerIs(false, 6000);
+      let stripGoneM = false;
+      for (let i = 0; i < 25 && !stripGoneM; i++) { await sleep(200); stripGoneM = !findWindow(panelPid, TASKBAR_TITLE); }
+      await sleep(800); // 两按之间留缓冲（toggle 两向不打架）
+      const t1 = Date.now();
+      chord();
+      const closedM = await tape.wait('escape-hatch-closed', (e) => e.trigger === 'manual', { since: t1, timeoutMs: 6000 });
+      const nativeGoneM = await waitNativeVisible(false, 8000);
+      let stripBackM = false;
+      for (let i = 0; i < 25 && !stripBackM; i++) { await sleep(200); stripBackM = !!findWindow(panelPid, TASKBAR_TITLE); }
+      const ledgerBackM = await ledgerIs(true, 6000);
+      if (openedM && nativeBackM && ledgerCleanM && stripGoneM && closedM && nativeGoneM && stripBackM && ledgerBackM) {
+        rep.pass(`D2 逃生口·热键保险丝：面板健康时全局热键（${ESCAPE_HATCH_HOTKEY}）强制还原`
+          + `（原生栏还原、条带销毁、还原账清账）；再按恢复接管（原生栏再隐、条带回来、账重建）——保险丝 toggle 语义成立`);
+      } else {
+        rep.fail(`D2 开口=${JSON.stringify(openedM)} 原生可见=${nativeBackM} 账清=${ledgerCleanM} 条带销=${stripGoneM} `
+          + `收口=${JSON.stringify(closedM)} 原生再隐=${nativeGoneM} 条带回=${stripBackM} 账重建=${ledgerBackM}`);
+      }
+    }
+    sinceDend = Date.now(); // C2 计数窗排除窗右沿（D 相位生命周期自此入自记账）
   } catch (err) {
     rep.fail(`电池异常: ${err && err.stack || err}`);
   } finally {
@@ -582,11 +732,15 @@ async function runSegments() {
       // 旧「收栏置位零条」判据随「off=清位」语义退役）；退出后 appbar 状态 = 开跑前基线
       // （控制器独立读数，不依赖面板自证）。
       rep.beginSegment('C2');
-      const setEvents = tape.all('taskbar-autohide-set', undefined, { since: sinceOff });
-      const restoredEvents = tape.all('taskbar-autohide-restored', undefined, { since: sinceOff });
-      const otherWrites = tape.all('taskbar-autohide-set-failed', undefined, { since: sinceOff }).length
-        + tape.all('taskbar-autohide-reattached', undefined, { since: sinceOff }).length
-        + tape.all('taskbar-autohide-reattach-failed', undefined, { since: sinceOff }).length;
+      // 计数窗（工单480 改段）：D 相位逃生口轮的接管生命周期自记账（D1/D2 各自断言
+      // opened/restored/closed/takeover 与盘上账本两向），不并入本段的 B 相位计数——
+      // 排除窗 [sinceD, sinceDend)（D 未跑时 sinceDend=0，窗为空、行为与改前逐字等价）。
+      const inEscapePhase = (e) => sinceDend > 0 && e.t >= sinceD && e.t < sinceDend;
+      const setEvents = tape.all('taskbar-autohide-set', undefined, { since: sinceOff }).filter((e) => !inEscapePhase(e));
+      const restoredEvents = tape.all('taskbar-autohide-restored', undefined, { since: sinceOff }).filter((e) => !inEscapePhase(e));
+      const otherWrites = tape.all('taskbar-autohide-set-failed', undefined, { since: sinceOff }).filter((e) => !inEscapePhase(e)).length
+        + tape.all('taskbar-autohide-reattached', undefined, { since: sinceOff }).filter((e) => !inEscapePhase(e)).length
+        + tape.all('taskbar-autohide-reattach-failed', undefined, { since: sinceOff }).filter((e) => !inEscapePhase(e)).length;
       const restoredOk = restoredEvents.length >= 2
         && restoredEvents.every((e) => e.reason === 'disabled' || e.reason === 'force');
       const stateAfter = appbarState();
@@ -595,9 +749,10 @@ async function runSegments() {
           + `建立置位 set ${setEvents.length} 次（B1 boot + B2 再开各一）＋退场复原 ${restoredEvents.length} 条全为禁用/自救径`
           + `（reason=${restoredEvents.map((e) => e.reason).join('/') || '无'}——禁用/退出把用户原值还回去是设计行为）、`
           + `运行期其他写入（set-failed/reattach 族）${otherWrites} 条（恒置位单账无中间态）`
-          + `＋退出后 appbar 状态 ${stateAfter} = 开跑前基线 ${appbarBaseline}（控制器独立读数）`);
+          + `＋退出后 appbar 状态 ${stateAfter} = 开跑前基线 ${appbarBaseline}（控制器独立读数；`
+          + `D 相位逃生口轮已按 [sinceD,sinceDend) 排除窗自记账，工单480）`);
       } else {
-        rep.fail(`C2 off 口径被破（M1 计数式）：建立置位 set ${setEvents.length} 条（期望恰 2——两次接管各一） `
+        rep.fail(`C2 off 口径被破（M1 计数式，工单480 排除窗 [${sinceD},${sinceDend})）：建立置位 set ${setEvents.length} 条（期望恰 2——两次接管各一） `
           + `退场复原 ${restoredEvents.length} 条（期望 ≥2）reason 异常 ${restoredEvents.filter((e) => e.reason !== 'disabled' && e.reason !== 'force').length} 条 `
           + `其他写入 ${otherWrites} 条（期望 0） appbar 状态=${stateAfter} 基线=${appbarBaseline}`);
       }

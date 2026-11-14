@@ -1,0 +1,449 @@
+{
+    "label":  "ticket476-v2",
+    "windowSec":  300,
+    "settleSec":  30,
+    "cores":  16,
+    "spawnTotal":  4,
+    "spawnBuckets":  {
+                         "unattributed":  4
+                     },
+    "oursSpawnCount":  0,
+    "oursSpawnTimes":  [
+
+                       ],
+    "oursSpawnGapsSec":  [
+
+                         ],
+    "sightings":  [
+                      {
+                          "t":  2.4,
+                          "wall":  "12:46:50.071",
+                          "pids":  "10668",
+                          "bucket":  "unattributed",
+                          "parent":  "lookup-failed"
+                      },
+                      {
+                          "t":  62.5,
+                          "wall":  "12:47:50.197",
+                          "pids":  "1404",
+                          "bucket":  "unattributed",
+                          "parent":  "lookup-failed"
+                      },
+                      {
+                          "t":  122.6,
+                          "wall":  "12:48:50.258",
+                          "pids":  "10476",
+                          "bucket":  "unattributed",
+                          "parent":  "lookup-failed"
+                      },
+                      {
+                          "t":  182.5,
+                          "wall":  "12:49:50.211",
+                          "pids":  "9176",
+                          "bucket":  "unattributed",
+                          "parent":  "lookup-failed"
+                      }
+                  ],
+    "cpuGroupPercentMachineSettled":  2.74,
+    "cpuGroupPercentMachineWhole":  2.743,
+    "cpuSettledDeltaSec":  279.9,
+    "cpuSettledMineCpuSec":  122.703,
+    "cpuSettledMineProcs":  "8-\u003e8",
+    "foreignCpuPercentMachineSettled":  0,
+    "foreignProcsRange":  "0-\u003e0",
+    "cpuSamples":  [
+                       {
+                           "t":  0.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  18.016,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  5.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  20.453,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  10.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  22.531,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  15.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  24.859,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  20.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  27.141,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  25.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  29.219,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  30.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  31.578,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  35.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  33.688,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  40.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  35.875,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  45,
+                           "mineProcs":  8,
+                           "mineCpuSec":  37.859,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  50.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  40.062,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  60.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  44.359,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  65.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  46.578,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  70.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  48.938,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  75.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  51.125,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  80.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  53.125,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  85,
+                           "mineProcs":  8,
+                           "mineCpuSec":  55.391,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  90.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  57.453,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  95.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  59.766,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  100.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  62,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  105.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  64.281,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  110.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  66.938,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  115,
+                           "mineProcs":  8,
+                           "mineCpuSec":  69.219,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  120.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  71.438,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  125,
+                           "mineProcs":  8,
+                           "mineCpuSec":  73.531,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  130,
+                           "mineProcs":  8,
+                           "mineCpuSec":  75.734,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  135.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  77.922,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  140.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  80,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  145.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  82.156,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  150.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  84.5,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  155.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  86.656,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  165.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  90.812,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  170.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  93.078,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  175.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  95.172,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  180.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  97.266,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  185,
+                           "mineProcs":  8,
+                           "mineCpuSec":  99.422,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  190.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  101.578,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  195.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  103.625,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  200.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  105.797,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  205.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  107.906,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  210.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  110.109,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  220.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  114.578,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  225,
+                           "mineProcs":  8,
+                           "mineCpuSec":  116.656,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  230.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  119.125,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  235,
+                           "mineProcs":  8,
+                           "mineCpuSec":  121.359,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  240.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  123.531,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  245.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  125.719,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  250.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  127.922,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  255.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  130.031,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  260.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  132.266,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  265,
+                           "mineProcs":  8,
+                           "mineCpuSec":  134.297,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  270,
+                           "mineProcs":  8,
+                           "mineCpuSec":  136.375,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  275.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  138.953,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  280.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  141.094,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  285.1,
+                           "mineProcs":  8,
+                           "mineCpuSec":  143.016,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       },
+                       {
+                           "t":  290,
+                           "mineProcs":  8,
+                           "mineCpuSec":  145.234,
+                           "foreignProcs":  0,
+                           "foreignCpuSec":  0
+                       }
+                   ],
+    "panelPid":  34236
+}

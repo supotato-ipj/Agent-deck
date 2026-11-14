@@ -172,6 +172,72 @@ export function classifySnapSessionEnd(
   return best ?? 'unknown'
 }
 
+/* ================================================================
+ * 增量 diff 调度（工单475，spec #472 用户故事 19）：三态裁决的全窗枚举探针从
+ * 「每拍无条件全走查」（审计口径 ~1.6% 整机）改为「事件驱动 + 成员复检 + 新鲜度
+ * 兜底」——静默稳态零枚举，枚举只在窗口世界确有事件、成员失格或新鲜度到点时发生。
+ * 纯调度缝（零 FFI，离线可测）；FFI 采集仍走 probeSnapWindows。
+ * ================================================================ */
+
+/** 一枚**已知成员句柄**的便宜位复检事实（每窗 4 次 user32 直调，不走全窗链式枚举） */
+export interface SnapMemberCheck {
+  hwnd: number
+  /** 窗口还活着（IsWindow）——已关闭的成员从这里暴露 */
+  alive: boolean
+  visible: boolean
+  iconic: boolean
+  /** 真 Snap 读数（IsWindowArranged；识别不可用期按 false——失格走全量探针定谳） */
+  arranged: boolean
+}
+
+/** 一拍增量计划的输入（全部由调用方采集/记账，纯函数只管调度） */
+export interface SnapBeatInput {
+  /** 上一拍全量探针落定的合格成员句柄集（空集 = 无会话） */
+  prevMembers: readonly number[]
+  /** 便宜位复检事实（仅 prevMembers 的窗；与 prevMembers 同拍采集） */
+  checks: readonly SnapMemberCheck[]
+  /** 自上次全量探针以来窗口世界是否出现过订阅事件（事件泵脏位） */
+  worldDirty: boolean
+  nowMs: number
+  /** 上次全量探针的本方时刻（null = 从未探过——首拍必立基线） */
+  lastFullProbeMs: number | null
+  /** 新鲜度兜底上限（ms）——ADR-0032 用户拍板的会话扫描新鲜度档 3~5 秒 */
+  fullProbeFreshnessMs: number
+}
+
+/** 增量计划：reuse = 复用缓存（本拍零枚举）；full-probe = 发起一次 probeSnapWindows */
+export type SnapBeatPlan =
+  | { type: 'reuse'; active: boolean }
+  | { type: 'full-probe'; reason: 'world-dirty' | 'member-lost' | 'freshness' }
+
+/**
+ * 增量 diff 调度（纯函数）。理由优先级：world-dirty > member-lost > freshness——
+ * 同一拍多理由并存时只报一条，效果等价（都发全量探针），优先级只为存证可读。
+ * - **world-dirty**：窗口世界出现过订阅事件（前台/z 序/显隐/状态/位置）——全量探针
+ *   重建成员集合与结束因果（事件是变化的存在证明，缓存必然过期）；
+ * - **member-lost**：世界无事件但某已知成员便宜位失格（最小化/解除/销毁/丢 Snap）——
+ *   事件漏投的现场保险，全量探针（带追踪集）定谳结束因果；
+ * - **freshness**：距上次全量探针超过新鲜度上限——ADR-0032 新鲜度降级档的兜底
+ *   （「必须轮询的按新鲜度降级：会话扫描 3~5 秒」），覆盖「会话建立事件整批漏投」
+ *   的最坏情形；静默稳态下这是唯一的周期枚举（≤0.2Hz，旧口径 4Hz）。
+ * 复用判定：成员便宜位全部合格（alive+visible+非最小化+arranged）即认为会话存续——
+ * 「无事件 ⇒ 窗口世界未变 ⇒ 全量探针结论不变」是增量的正确性前提（显示器相交/
+ * cloak 细分的裁决留在全量探针，便宜位刻意只收足以判「没变」的位）。
+ */
+export function planSnapBeat(input: SnapBeatInput): SnapBeatPlan {
+  if (input.worldDirty) return { type: 'full-probe', reason: 'world-dirty' }
+  if (input.lastFullProbeMs === null || input.nowMs - input.lastFullProbeMs > input.fullProbeFreshnessMs) {
+    return { type: 'full-probe', reason: 'freshness' }
+  }
+  const checkByHwnd = new Map(input.checks.map((c) => [c.hwnd, c]))
+  for (const hwnd of input.prevMembers) {
+    const c = checkByHwnd.get(hwnd)
+    const qualified = c !== undefined && c.alive && c.visible && !c.iconic && c.arranged
+    if (!qualified) return { type: 'full-probe', reason: 'member-lost' }
+  }
+  return { type: 'reuse', active: input.prevMembers.length > 0 }
+}
+
 /** 一拍采集的产出：识别可用性 + 真 Snap 候选事实集（只含 arranged=true 的窗——身份先行，贵采后置） */
 export interface SnapProbeResult {
   /** IsWindowArranged 可绑定可用（false = 分屏收栏整体关闭的严格降级） */

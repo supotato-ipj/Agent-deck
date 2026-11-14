@@ -1,0 +1,26 @@
+{
+  "label": "control-transp",
+  "rootPid": 24060,
+  "coreCount": 16,
+  "settleMs": 30000,
+  "durationMs": 120000,
+  "wallMs": 121469,
+  "cpuMsDelta": 3671.9,
+  "percentOfMachine": 0.189,
+  "treeAtStart": [
+    4864,
+    16184,
+    21164,
+    24060,
+    29216
+  ],
+  "treeAtEnd": [
+    4864,
+    16184,
+    21164,
+    24060,
+    29216
+  ],
+  "churnedPids": [],
+  "measuredAt": "2026-11-14T12:22:55.054Z"
+}

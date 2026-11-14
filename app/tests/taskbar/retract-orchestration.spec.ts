@@ -278,8 +278,8 @@ describe('控制器接线（工单241 三态机；工单308 M1 改钉；效果�
     expect(code).not.toMatch(/appBar:/)
   })
 
-  it('轮询与全屏让位共用 250ms 节奏（单一 YIELD_POLL_MS，只有一处轮询用它）', () => {
-    expect(code).toMatch(/const YIELD_POLL_MS = 250/)
+  it('兜底拍与全屏让位共用 500ms 节奏（单一 YIELD_POLL_MS，只有一处轮询用它；工单475 降频自 250ms——≤1 秒恢复口径由事件冲刷拍承接）', () => {
+    expect(code).toMatch(/const YIELD_POLL_MS = 500/)
     expect(code.match(/\bYIELD_POLL_MS\b/g)?.length ?? 0).toBe(2) // 定义 + 轮询一处（TRAY_YIELD_POLL_MS 是另一档）
   })
 

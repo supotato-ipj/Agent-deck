@@ -135,6 +135,37 @@ describe('HardwareService 采样状态机', () => {
       await ctx.stop()
     }
   })
+
+  it('快照读取不触发外部源调用：GPU 读数只随采样步更新（工单476，外部命令只随采样步发生）', async () => {
+    const ctx = new Context()
+    const sources = fakeHardware()
+    let gpuCalls = 0
+    const counting: HardwareSources = {
+      ...sources,
+      gpu: () => {
+        gpuCalls += 1
+        return sources.gpu()
+      },
+    }
+    const svc = new HardwareService(ctx, { sources: counting })
+    await ctx.start()
+    try {
+      // 采样前连读快照：不触发 GPU 源（外部命令查询是采样步的副产物，不是快照读取的）
+      svc.gauges()
+      svc.gauges()
+      svc.gauges()
+      expect(gpuCalls).toBe(0)
+      expect(svc.gauges().gpu_usage).toBeUndefined() // 未采样无 GPU 读数（缺位不编造）
+      svc.sample() // 采样步：外部源恰好发生一次
+      expect(gpuCalls).toBe(1)
+      expect(svc.gauges().gpu_usage).toBe(42) // 快照呈现最近采样值
+      svc.gauges()
+      svc.gauges()
+      expect(gpuCalls).toBe(1) // 后续快照读取仍不触发
+    } finally {
+      await ctx.stop()
+    }
+  })
 })
 
 describe('SessionsService', () => {

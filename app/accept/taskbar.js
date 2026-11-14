@@ -572,15 +572,29 @@ function seedRecsProbes(rep) {
     // readShortcutLink 解析回长名（C:\Users\An W\...）——种子事件 exe 与 byTarget 键
     // 形差不归一，mapScoresToItems 整段映射不上（2026-10-13 红轮取证实验坐实）。
     const tmpDir = fs.mkdtempSync(path.join(fs.realpathSync.native(require('os').tmpdir()), 'deck-p16-'));
-    // 启动臂探针 = cmd 副本（真控制台窗、进程常驻、镜像名唯一可轮询）——notepad 副本
-    // 弃用：Win11 System32 notepad.exe 是存根，副本启动被重定向 Store 记事本且并入既有
-    // 实例标签页，进程与窗口两级判据都抓不到出场（第 3/4 轮红轮实证）。
-    const launchTarget = path.join(tmpDir, 'deck-p16-cmd.exe');
-    fs.copyFileSync(path.join(sysRoot, 'System32', 'cmd.exe'), launchTarget);
+    // 探针形态变迁：notepad 副本弃用（Win11 存根重定向 Store 记事本，两级判据都失，
+    // 第 3/4 轮红轮实证）→ cmd 副本（进程常驻镜像名唯一；但控制台窗从不进应用组枚举，
+    // 工单483 第七轮真机实锤）→ 工单483 起改 WinForms 最小窗副本（P18_PROBE_CS 同源
+    // 编译，真任务栏合格窗）。
+    const csc = path.join(sysRoot, 'Microsoft.NET', 'Framework64', 'v4.0.30319', 'csc.exe');
+    if (!fs.existsSync(csc)) {
+      rep.note('P16 探针前置失败：csc.exe 缺失（.NET Framework4.x，工单483 起 P28 收敛判据也依赖真窗探针）');
+      return null;
+    }
+    const formsBase = path.join(tmpDir, 'deck-p16-forms.exe');
+    const csFile16 = path.join(tmpDir, 'probe16.cs');
+    fs.writeFileSync(csFile16, P18_PROBE_CS, 'utf8');
+    const built16 = spawnSync(csc, ['/nologo', '/target:winexe', '/r:System.Windows.Forms.dll', '/r:System.Drawing.dll',
+      `/out:${formsBase}`, csFile16], { encoding: 'utf8' });
+    if (built16.status !== 0 || !fs.existsSync(formsBase)) {
+      rep.note(`P16 探针编译失败：status=${built16.status} ${(built16.stderr || '').trim().slice(0, 200)}`);
+      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch { /* 尽力 */ }
+      return null;
+    }
     const tags = ['A', 'B', 'C', 'D', 'E'];
     const probes = tags.map((tag, i) => {
-      const target = i === 0 ? launchTarget : path.join(tmpDir, `deck-p16-probe-${tag}.exe`);
-      if (i > 0) fs.writeFileSync(target, 'deck-p16 placeholder (not an executable)', 'utf8');
+      const target = path.join(tmpDir, `deck-p16-probe-${tag}.exe`);
+      fs.copyFileSync(formsBase, target);
       const name = `DECK-P16-${t}-${tag}.lnk`;
       return { name, display: `DeckP16${tag}`, exe: target };
     });
@@ -622,6 +636,9 @@ function cleanupRecsProbes(rep, p16) {
   if (!p16 || p16.done) return;
   p16.done = true;
   const all16 = [...p16.probes, ...(p16.extras || [])]; // 工单161 起含递补候选 F/G
+  // 工单483 起五探针皆 WinForms 最小窗副本（可启动，选型变迁见 seedRecsProbes 注）：P28
+  // 收杀自己拉起的实例，此处兜底扫杀全部探针镜像（未被拉起时 taskkill 空枚举无害）
+  for (const p of p16.probes) spawnSync('taskkill', ['/IM', path.basename(p.exe), '/F'], { stdio: 'ignore' });
   // 工单256：桌面夹具批量可恢复删除（单会话），失败显式记账——静默残留会污染下一轮
   const t16 = Date.now();
   const steps16 = [];
@@ -679,6 +696,48 @@ function sweepTaskbarStoreResidue(rep) {
       rep.note(`轮起笔残留扫除（工单255）：taskbar-layout.json 清出 ${swept.removed.length} 条跨轮探针残留（${swept.removed.slice(0, 6).join('; ')}${swept.removed.length > 6 ? ' …' : ''}）`);
     }
   } catch { /* 尽力 */ }
+}
+
+// —— P28 explorer 手钉保障（工单482）——
+// explorer 点击入口 = 栏布局存储里的手钉条目（生产与电池共档 userData/taskbar-layout.json，
+// 本机生产手钉正常在场）。缺位检出（用户解钉过）会让段内永远点不到图标——轮起笔（面板
+// 拉起前）代写一条，段内清场摘除（仅摘代写的：pre-existing 条目是用户真实数据不动）。
+// 归一身份 = 全小写反斜杠（normalizeExe 同款口径），精确比对不误伤 explorer-plus 类名。
+let explorerPin482 = null; // 'pre-existing' | 'seeded'（清场只摘 seeded）
+const NORM482 = (s) => String(s || '').replace(/\//g, '\\').toLowerCase();
+const EXPLORER_EXE482 = 'c:\\windows\\explorer.exe';
+
+function ensureExplorerPin482(rep) {
+  try {
+    const storeFile = path.join(app.getPath('userData'), 'taskbar-layout.json');
+    const store = JSON.parse(fs.readFileSync(storeFile, 'utf8'));
+    if (!Array.isArray(store.pinned)) return;
+    if (store.pinned.some((e) => NORM482(e.exe) === EXPLORER_EXE482)) {
+      explorerPin482 = 'pre-existing';
+      return;
+    }
+    store.pinned.push({ exe: 'C:\\Windows\\explorer.exe', label: 'explorer', iconKey: null });
+    fs.writeFileSync(storeFile, JSON.stringify(store, null, 1) + '\n', 'utf8');
+    explorerPin482 = 'seeded';
+    rep.note('P28 手钉保障（工单482）：栏布局存储缺 explorer 条目，轮起笔代写（面板拉起即装载；清场摘除）');
+  } catch (err) {
+    rep.note(`P28 手钉保障读档失败（段内将按前置缺失判红）: ${err && err.message}`);
+  }
+}
+
+function removeSeededExplorerPin482(rep) {
+  if (explorerPin482 !== 'seeded') { explorerPin482 = null; return; }
+  try {
+    const storeFile = path.join(app.getPath('userData'), 'taskbar-layout.json');
+    const store = JSON.parse(fs.readFileSync(storeFile, 'utf8'));
+    const before = JSON.stringify(store);
+    if (Array.isArray(store.pinned)) store.pinned = store.pinned.filter((e) => NORM482(e.exe) !== EXPLORER_EXE482);
+    if (JSON.stringify(store) !== before) {
+      fs.writeFileSync(storeFile, JSON.stringify(store, null, 1) + '\n', 'utf8');
+      rep.note('P28 清场：段内代写的 explorer 手钉条目已摘除（工单482）');
+    }
+  } catch { /* 尽力 */ }
+  explorerPin482 = null;
 }
 
 // —— P18 统一序列探针（工单189）：csc 现编译 WinForms 最小窗，副本×3 ——
@@ -761,7 +820,6 @@ function cleanupP18Probes(p18) {
   } catch { /* 尽力 */ }
   try { fs.rmSync(p18.tmpDir, { recursive: true, force: true }); } catch { /* 尽力 */ }
 }
-
 async function main() {
   const rep = new Report('49-taskbar');
   let panelPid = 0;
@@ -808,10 +866,13 @@ async function main() {
 
     // —— 栏布局存储跨轮残留扫除（工单255）：面板拉起前清出旧轮硬杀遗留的探针条目 ——
     sweepTaskbarStoreResidue(rep);
+    // —— P28 explorer 手钉保障（工单482）：点击入口在场（缺位代写，清场摘除）——
+    ensureExplorerPin482(rep);
 
     // —— P16 推荐组探针（工单160）：先于面板种入（usage 打分只在服务构造时读盘）——
     p16 = seedRecsProbes(rep);
     if (p16) rep.note(`P16 探针已种入：${p16.probes.map((p) => p.name).join(' / ')}`);
+
 
     // —— P18 统一序列探针（工单189）：面板拉起后段内种入（无 usage 前置）——
     p18 = seedP18Probes(rep);
@@ -1510,36 +1571,39 @@ async function main() {
         }
 
         // —— ② 左键启动（端到端：真点击 → rec-click 存证 → 探针进程真出场）——
-        // 出场判据 = 进程级（镜像名 tasklist 轮询）：notepad 副本两轮红轮实证抓不到
-        // （System32 存根重定向 Store 记事本并并入既有实例标签页——窗口类与镜像名两级
-        // 都失）；cmd 副本进程常驻镜像名唯一，进程在场即 shell 打开通道端到端实锤，
-        // 控制台窗（ConsoleWindowClass 新窗）作旁证。
+        // 出场判据 = 进程级（镜像名 tasklist 轮询）：探针形态变迁见 seedRecsProbes 注
+        // （notepad 副本 → cmd 副本 → 工单483 起 WinForms 最小窗副本——窗是真任务栏
+        // 合格窗，标题含镜像名可作新窗旁证）。
         const ptA = recPt16(await waitGeometrySettled(g16), pA16.name);
         const clickPt16 = ptA || toPhys(g16.recommendations[0].x + g16.recommendations[0].w / 2, g16.recommendations[0].y + g16.recommendations[0].h / 2);
-        const notepadHwndsBefore16 = new Set(win32.topLevelWindows()
-          .filter((h) => win32.className(h) === 'ConsoleWindowClass'));
+        const imgName16 = path.basename(pA16.exe);
+        const winTitlesBefore16 = new Set(win32.topLevelWindows().map((h) => titleOf(h) || ''));
         win32.clickPhys(clickPt16.x, clickPt16.y, 'left');
         const clickEv16 = await tape.wait('taskbar-rec-click', (e) => e.name === pA16.name, { timeoutMs: 5000 });
         const clickOk16 = await tape.wait('taskbar-rec-click-result', (e) => e.name === pA16.name && e.ok, { timeoutMs: 5000 });
-        const imgName16 = 'deck-p16-cmd.exe';
         let procUp16 = false;
         let copyHwnd16 = null;
-        const isConsole16 = (h) => ['ConsoleWindowClass', 'CASCADIA_HOSTING_WINDOW_CLASS'].includes(win32.className(h));
         for (let i = 0; i < 16 && !procUp16; i++) {
           await sleep(400);
           const r16 = spawnSync('tasklist', ['/FI', `IMAGENAME eq ${imgName16}`, '/NH'], { encoding: 'utf8' });
           procUp16 = (r16.stdout || '').toLowerCase().includes(imgName16);
           if (!copyHwnd16) {
-            copyHwnd16 = win32.topLevelWindows().find((h) => isConsole16(h) && !notepadHwndsBefore16.has(h)) || null;
+            copyHwnd16 = win32.topLevelWindows().find((h) => {
+              const title = titleOf(h) || '';
+              return title.includes(imgName16) && !winTitlesBefore16.has(title);
+            }) || null;
           }
         }
         if (procUp16) spawnSync('taskkill', ['/IM', imgName16, '/F'], { stdio: 'ignore' });
         if (copyHwnd16) spawnSync('taskkill', ['/PID', String(win32.threadIdOf(copyHwnd16).pid), '/T', '/F'], { stdio: 'ignore' });
-        if (clickEv16 && clickOk16 && procUp16) {
-          rep.pass(`P16 左键启动经 shell 打开通道：真点击存证（rec-click+ok）→ 探针目标（cmd 副本）进程真出场${copyHwnd16 ? '（控制台窗在场）' : ''}并收杀`);
+        // 出场双通道（工单483 第十轮实锤：高负载下 tasklist /FI 轮询可空手而归——镜像名
+        // 探针窗在场即进程活着的直接证据；探针转 WinForms 是本票夹具改动，证据通道随行）
+        const procUpOk16 = procUp16 || copyHwnd16 !== null;
+        if (clickEv16 && clickOk16 && procUpOk16) {
+          rep.pass(`P16 左键启动经 shell 打开通道：真点击存证（rec-click+ok）→ 探针目标（WinForms 副本）进程真出场${copyHwnd16 ? '（探针窗在场）' : ''}并收杀`);
         } else {
-          rep.fail(`P16 左键启动：点击存证=${!!clickEv16} 回执ok=${!!clickOk16} 目标进程=${procUp16 ? '在场' : '未出场'}`
-            + ` 控制台窗=${copyHwnd16 ? '在场' : '未出场'}（exe 归一寻址=${clickEv16 ? norm16(clickEv16.exe) === norm16(pA16.exe) : 'n/a'}）`);
+          rep.fail(`P16 左键启动：点击存证=${!!clickEv16} 回执ok=${!!clickOk16} 目标进程=${procUpOk16 ? '在场' : '未出场'}`
+            + ` 探针窗=${copyHwnd16 ? '在场' : '未出场'}（exe 归一寻址=${clickEv16 ? norm16(clickEv16.exe) === norm16(pA16.exe) : 'n/a'}）`);
         }
 
         // —— ③ 右键三行菜单 + 手钉（B 消失、F 递补，不双占位；工单161 扩移除行；
@@ -2202,6 +2266,141 @@ async function main() {
     // 本段断言面 (a)/(b) 同款：孤儿检测器（连发后完整禁用，条带必须归零——迟到的
     // closed 若抹掉控制器共享账，destroy() 因 win=null 空转、条带永不清）；乱序注销
     // 存证（新窗 registered 之后再冒 appbar-removed 即迟到 closed 拿新窗句柄误注销）。
+    // ================================================================
+    rep.beginSegment('P29');
+    if (!p16) {
+      rep.fail('P29 前置缺失：P16 探针夹具缺席（见种入 note）');
+    } else {
+      const norm28 = (s) => String(s || '').toLowerCase();
+      // 自适应选探针（工单483）：可见集成员随段次漂移（P16③ 手钉 B、P20 臂C 把推荐位
+      // 首条拖去升手钉）——点「此刻可见的第一枚 P16 探针」，谁可见点谁，不与任何段的
+      // 夹具消费序耦合
+      const pickProbe28 = () => {
+        const names28 = (((latestGeometry(null) || {}).recommendations) || []).map((r) => r.name);
+        return p16.probes.find((p) => names28.includes(p.name)) || null;
+      };
+      let probe28 = pickProbe28();
+      for (let i = 0; i < 40 && !probe28; i++) {
+        await sleep(300);
+        probe28 = pickProbe28();
+      }
+      if (!probe28) {
+        rep.fail(`P29 探针未进推荐位（12s 内五枚 P16 探针无一可见——P16 种入/池互挤，见 P16 段账）`
+          + ` 当前推荐位=${JSON.stringify((((latestGeometry(null) || {}).recommendations) || []).map((r) => r.name))}`);
+      } else {
+        const probeImg28 = path.basename(probe28.exe);
+        // 防跨轮残留：清掉该镜像可能残存的实例，进程出场探测才唯一
+        spawnSync('taskkill', ['/IM', probeImg28, '/F'], { stdio: 'ignore' });
+        await sleep(300);
+        // 关残留浮层（工单483 第四轮真机实锤）：P19 恢复段的空白菜单（推荐组空白右键）
+        // 点外即收但段末不主动关——浮层窗悬在推荐位上方会把真点击吃掉（rec-click 零事件）。
+        // 在开始组与模式组右侧的条带空白处（DIP 340,24——远离一切 pill）先发一次空点，
+        // 文档级点击即转达收层（relayCloseAllPopups），再等一拍让浮层收完。
+        // 驻留后才点击（工单483 第五轮真机实锤）：热区跟踪器 25ms 轮询按光标位置开门，
+        // 瞬移+立即点击快过轮询，点击落在穿透态上直接穿到桌面（P23 同轮同病）——先
+        // SetCursorPos 驻留 ≥150ms（≥5 拍）等开门，再发点击。
+        const neutral28 = toPhys(340, 24);
+        win32.SetCursorPos(neutral28.x, neutral28.y);
+        await sleep(150);
+        win32.clickPhys(neutral28.x, neutral28.y, 'left');
+        await sleep(700);
+        const recPt28 = (g) => {
+          const r = (g.recommendations || []).find((x) => x.name === probe28.name);
+          return r ? toPhys(r.x + r.w / 2, r.y + r.h / 2) : null;
+        };
+        const pt28 = recPt28(await waitGeometrySettled(latestGeometry(null))) || recPt28(latestGeometry(null));
+        if (!pt28) {
+          rep.fail(`P29 探针几何缺位（推荐位在场但取不到图标矩形）：${JSON.stringify((((latestGeometry(null) || {}).recommendations) || []).map((r) => r.name))}`);
+        } else {
+          // launching 态 DOM 查询（条带页按 data-exe 寻址——遍历比较 dataset.exe 的归一形：
+          // 不用 CSS 属性选择器（路径反斜杠在 JS/CSS 双层转义里层数易错，第六轮真机实锤
+          // 类名在而选择器不中）；比较用内核 normalizeExe 同款归一（窗口枚举 exe 与 lnk
+          // 富化 exe 的大小写/斜杠形差，第七轮真机实锤）
+          const exeLit28 = JSON.stringify(probe28.exe);
+          const launchingDom28 = () => cdpEval(`(() => {
+            const exe = ${exeLit28};
+            const norm = (s) => (s || '').split('/').join('\\\\').toLowerCase();
+            const recEl = [...document.querySelectorAll('#pill-recs .tb-rec.launching')].find((n) => norm(n.dataset.exe) === norm(exe));
+            const appEl = [...document.querySelectorAll('.tb-app.running')].find((n) => norm(n.dataset.exe) === norm(exe));
+            const all = [...document.querySelectorAll('.launching')].map((n) => n.dataset.exe || '?');
+            return { recLaunching: !!recEl, appRunning: !!appEl, all };
+          })()`, TASKBAR_TITLE);
+          // 探针窗检测（工单483 起探针为 WinForms 副本——标题含镜像名，非控制台类）：
+          // 标题新窗 = 点击前不存在、点击后标题含镜像名的顶层窗
+          const winTitles28 = () => new Set(win32.topLevelWindows().map((h) => titleOf(h) || ''));
+          // 新窗基线在点击**前**取（第六轮真机实锤：取在臂① 之后时探针窗已被计入基线，
+          // 「新窗出场」检测恒空）
+          const before28 = winTitles28();
+
+          // —— 臂① 真点击 → AC1 ≤1s「启动中」+ AC2 事件戳 ≤1s ——
+          // tape 过滤带 t ≥ clickT0 时间门：事件磁带自轮首起算，不设门会把 P16② 同名
+          // 探针的旧事件错配成本段的（第四轮真机实锤的假绿）
+          const clickT0 = Date.now();
+          win32.SetCursorPos(pt28.x, pt28.y);
+          await sleep(150); // 热区开门驻留（见上）——AC1 计时起点在 clickT0，驻留不计入
+          win32.clickPhys(pt28.x, pt28.y, 'left');
+          const clickEv28 = await tape.wait('taskbar-rec-click', (e) => e.name === probe28.name && e.t >= clickT0, { timeoutMs: 5000 });
+          let latLaunching28 = null;
+          for (let i = 0; i < 30 && latLaunching28 === null; i++) {
+            const d28 = await launchingDom28();
+            if (d28 && d28.recLaunching) latLaunching28 = Date.now() - clickT0;
+            else await sleep(40);
+          }
+          const resultEv28 = await tape.wait('taskbar-rec-click-result',
+            (e) => e.name === probe28.name && e.ok === true && typeof e.issuedMs === 'number' && e.t >= clickT0, { timeoutMs: 5000 });
+          const issued28 = resultEv28 ? resultEv28.issuedMs : null;
+          const stampGap28 = clickEv28 && resultEv28 ? resultEv28.t - clickEv28.t : null;
+          // 启动命令送达对账帧（launchExe 落定 ok:true——命令被 shell 收下）
+          const settleEv28 = await tape.wait('taskbar-app-launch-result',
+            (e) => norm28(e.exe) === norm28(probe28.exe) && e.ok === true && e.t >= clickT0, { timeoutMs: 8000 });
+          const ac1ok28 = latLaunching28 !== null && latLaunching28 <= 1000;
+          const ac2ok28 = issued28 !== null && issued28 <= 1000 && stampGap28 !== null && stampGap28 <= 1100;
+          if (ac1ok28 && ac2ok28 && settleEv28) {
+            rep.pass(`P29 点击 ≤1s「启动中」+ 命令即发（issuedMs=${issued28}ms，事件对时差=${stampGap28}ms，`
+              + `launching 时延=${latLaunching28}ms，落定对账帧在场）——真机计时入事件日志`);
+          } else {
+            rep.fail(`P29 启动反馈断言：AC1 launching≤1s=${ac1ok28}(lat=${latLaunching28}) `
+              + `AC2 issued≤1s=${ac2ok28}(issuedMs=${issued28},gap=${stampGap28},clickEv=${!!clickEv28},resultEv=${!!resultEv28}) `
+              + `落定对账=${!!settleEv28} launching位=${JSON.stringify(await launchingDom28())}`);
+          }
+
+          // —— 臂② AC3 收敛：探针窗出场 → 运行条目上栏 → 启动中态消失 ——
+          let probeHwnd28 = null;
+          for (let i = 0; i < 25 && !probeHwnd28; i++) {
+            await sleep(400);
+            probeHwnd28 = win32.topLevelWindows().find((h) => {
+              const title = titleOf(h) || '';
+              return title.includes(probeImg28) && !before28.has(title);
+            }) || null;
+          }
+          let converged28 = null;
+          for (let i = 0; i < 40 && converged28 === null; i++) {
+            const d28 = await launchingDom28();
+            if (d28 && d28.appRunning && !d28.recLaunching) converged28 = Date.now();
+            else await sleep(250);
+          }
+          let procUp28 = false;
+          for (let i = 0; i < 4 && !procUp28; i++) {
+            const r28 = spawnSync('tasklist', ['/FI', `IMAGENAME eq ${probeImg28}`, '/NH'], { encoding: 'utf8' });
+            procUp28 = (r28.stdout || '').toLowerCase().includes(probeImg28);
+            if (!procUp28) await sleep(300);
+          }
+          spawnSync('taskkill', ['/IM', probeImg28, '/T', '/F'], { stdio: 'ignore' }); // 探针收杀（P16 启动臂同款）
+          // 进程证据双通道（工单483 第十轮实锤：高负载下 tasklist /FI 轮询可空手而归，
+          // 而标题含镜像名的顶层窗在场即进程活着的直接证据）——任一通道在场即算出场
+          const procUpOk28 = procUp28 || probeHwnd28 !== null;
+          const ac3ok28 = converged28 !== null && procUpOk28;
+          if (ac3ok28) {
+            rep.pass(`P29 就绪收敛：探针窗出场（hwnd=${probeHwnd28 || 'n/a'}，tasklist=${procUp28 ? '在场' : '未命中'}）→ 运行条目上栏（.tb-app.running）`
+              + `且启动中态消失（launching 全清）——状态机收敛回常态`);
+          } else {
+            rep.fail(`P29 收敛断言：收敛=${converged28 !== null} 探针进程=${procUpOk28 ? '在场已收杀' : '未出场'}`
+              + ` 探针窗=${probeHwnd28 ? '在场' : '未出场'} launching位=${JSON.stringify(await launchingDom28())}`);
+          }
+        }
+      }
+    }
+
     rep.beginSegment('P10');
     const sinceP10 = Date.now();
     const burst = await cdpEval(`(async () => {
@@ -4015,6 +4214,124 @@ static class Probe {
       return false;
     };
 
+    // —— P28 explorer 图标点击通道（工单482）：#478 定谳修复的定向段 ——
+    // 语义（用户拍板）：有资源管理器窗口则置前，无则新开「此电脑」窗口。根因 = launch
+    // 通道 shell.openPath 对 explorer.exe 恒失败（#478 诊断 §二三对照：openPath 恒
+    // "Failed to open path" 86ms 零窗口、spawn explorer 开窗成功），回归点 = 2026-10-14
+    // explorer 手钉进栏（此前无点击入口；通道实现与 Electron 版本此后未变——恒久语义，
+    // 非代码回归）。修复 = explorer 特判 spawn 通道（services/taskbar.launchApp 路由 →
+    // adapter explorerOpenThisPc：spawn explorer ::{ThisPC CLSID}，无窗落「此电脑」而非
+    // 裸 explorer 主页）。路由纯函数与服务层通道选择由 vitest 单测锁定（launch-route /
+    // explorer-launch spec）；本段存证真机两端到端臂：
+    //   ①无窗点击 → 新开 This PC（新 CabinetWClass + This PC/此电脑 标题互证 +
+    //     app-result ok/launched——修复前此臂恒 ok:false "Failed to open path" 零窗口）；
+    //   ②有窗置前（控制器占位窗夺前台 → 单窗未前台 → 点击 → app-result ok/activated +
+    //     前台对账=①的窗）。
+    rep.beginSegment('P28');
+    {
+      const cabWins28 = () => win32.topLevelWindows().filter((h) => win32.IsWindowVisible(h) && win32.className(h) === 'CabinetWClass');
+      const closeWin28 = async (h) => {
+        win32.PostMessageW(h, 0x0010 /* WM_CLOSE */, 0, 0);
+        for (let i = 0; i < 20; i++) { await sleep(200); if (!win32.IsWindow(h) || !win32.IsWindowVisible(h)) return true; }
+        return false;
+      };
+      const isThisPc28 = (t) => /This PC|此电脑/i.test(String(t || ''));
+      // 栏面运行态等待（1Hz 编排拍）：explorer 条目在场且 running 按期望落定——
+      // 陈旧 lastWindows 残留会让点击误走置前（死 hwnd）/漏走 launch（重开一扇）
+      const waitRunning28 = async (want, timeoutMs = 6000) => {
+        const deadline = Date.now() + timeoutMs;
+        for (;;) {
+          try {
+            const st = await cdpEval(`window.deck.bridge.invoke('taskbar/get-state', null)`, TASKBAR_TITLE);
+            const e = st && ((st.apps) || []).find((a) => NORM482(a.exe) === EXPLORER_EXE482);
+            if (e && !!e.running === want) return e;
+          } catch { /* 渲染页未就位下一拍重试 */ }
+          if (Date.now() >= deadline) return null;
+          await sleep(300);
+        }
+      };
+      const ICON_EXPR28 = `(() => {
+        const want = 'c:\\\\windows\\\\explorer.exe';
+        const el = [...document.querySelectorAll('#pill-apps .tb-app')].find((n) => (n.dataset.exe || '').toLowerCase() === want);
+        return el ? el.getBoundingClientRect().toJSON() : null;
+      })()`;
+      const iconPt28 = async () => {
+        const r = await cdpEval(ICON_EXPR28, TASKBAR_TITLE);
+        return r ? toPhys(r.x + r.width / 2, r.y + r.height / 2) : null;
+      };
+      let opened28 = [];  // 段内开出的资源管理器窗（清场 WM_CLOSE）
+      let holder28 = null; // 置前臂的前台占位窗（控制器自有，清场 destroy）
+      try {
+        // 前置①：栏面有 explorer 条目（轮起笔手钉保障已代写缺位情形；此查面板装载结果）
+        let st28 = null;
+        for (let i = 0; i < 10 && !st28; i++) {
+          try { st28 = await cdpEval(`window.deck.bridge.invoke('taskbar/get-state', null)`, TASKBAR_TITLE); } catch { await sleep(400); }
+        }
+        const hasEntry28 = !!st28 && ((st28.apps) || []).some((a) => NORM482(a.exe) === EXPLORER_EXE482);
+        // 前置②：无资源管理器窗（既有窗先 WM_CLOSE；关不掉则单窗裁决漂移 pick，判前置失败）
+        for (const h of cabWins28()) await closeWin28(h);
+        const linger28 = cabWins28();
+        if (!hasEntry28 || linger28.length > 0) {
+          rep.fail(`P28 前置缺失：栏面 explorer 条目=${hasEntry28}（手钉保障=${explorerPin482}） 既有资源管理器窗=${linger28.length}（多窗会漂移 pick 语义） get-state apps=${st28 ? JSON.stringify(((st28.apps) || []).map((a) => a.exe)) : 'null'}`);
+        } else {
+          const notRunning28 = await waitRunning28(false); // 运行态落定（陈旧枚举出清）
+          const baseline28 = cabWins28();
+          // —— 臂① 无窗点击 → 新开「此电脑」——
+          let resA = null;
+          let pc28 = null;
+          const ptA = await iconPt28();
+          if (ptA) {
+            win32.moveMousePhys(ptA.x, ptA.y);
+            await sleep(300); // 到靶停拍（热区开门后同拍点击，P21 同款）
+            const sinceA = Date.now();
+            win32.clickPhys(ptA.x, ptA.y, 'left');
+            resA = await tape.wait('taskbar-app-result', (e) => NORM482(e.exe) === EXPLORER_EXE482 && e.t >= sinceA, { timeoutMs: 6000 });
+            if (resA) {
+              for (let i = 0; i < 40 && !pc28; i++) {
+                await sleep(200);
+                pc28 = cabWins28().find((h) => !baseline28.includes(h) && isThisPc28(titleOf(h)));
+              }
+              if (pc28) opened28.push(pc28);
+            }
+          }
+          const armAOk = !!resA && resA.ok === true && resA.action === 'launched' && opened28.length === 1;
+          // —— 臂② 有窗置前：占位窗夺前台 → 单窗未前台 → 点击 → activated + 前台对账 ——
+          let resB = null;
+          let fgB = false;
+          const running28 = armAOk ? await waitRunning28(true) : null; // 新窗上栏（1Hz 编排拍）
+          if (armAOk && running28) {
+            holder28 = new BrowserWindow({ width: 420, height: 320, title: 'DECK-P28-HOLDER', backgroundColor: '#203040' });
+            await holder28.loadURL('about:blank');
+            holder28.show();
+            const holderHwnd28 = hwndOf(holder28);
+            for (let i = 0; i < 10 && Number(win32.GetForegroundWindow()) !== holderHwnd28; i++) { forceForeground(holderHwnd28); await sleep(150); }
+            const ptB = await iconPt28();
+            if (ptB) {
+              win32.moveMousePhys(ptB.x, ptB.y);
+              await sleep(300);
+              const sinceB = Date.now();
+              win32.clickPhys(ptB.x, ptB.y, 'left');
+              resB = await tape.wait('taskbar-app-result', (e) => NORM482(e.exe) === EXPLORER_EXE482 && e.t >= sinceB, { timeoutMs: 6000 });
+              if (resB) {
+                const target28 = opened28[0];
+                for (let i = 0; i < 25 && !fgB; i++) { await sleep(200); if (Number(win32.GetForegroundWindow()) === target28) fgB = true; }
+              }
+            }
+          }
+          const armBOk = !!resB && resB.ok === true && resB.action === 'activated' && fgB;
+          if (armAOk && armBOk) {
+            rep.pass(`P28 explorer 点击两端到端（工单482 spawn 通道）：臂① 无窗点击 → 新开「此电脑」（app-result ok/launched、新 CabinetWClass hwnd=${opened28[0]} title="${titleOf(opened28[0])}"）；臂② 有窗置前（占位窗夺前台后单窗未前台 → 点击 → app-result ok/activated、前台对账=${fgB}）`);
+          } else {
+            rep.fail(`P28 臂①=${armAOk}（app-result=${resA ? JSON.stringify({ ok: resA.ok, action: resA.action, error: resA.error || null }) : 'null'} ThisPC窗=${pc28 ? `hwnd=${pc28} title="${titleOf(pc28)}"` : '缺席（8s 有界等待）'}${ptA ? '' : '；点击点缺失：栏面无 explorer 图标 DOM 矩形'} 运行态落定=${!!notRunning28}） 臂②=${armBOk}（新窗上栏=${!!running28} app-result=${resB ? JSON.stringify({ ok: resB.ok, action: resB.action, error: resB.error || null }) : 'null'} 前台对账=${fgB}）`);
+          }
+        }
+      } finally {
+        for (const h of opened28) await closeWin28(h);
+        if (holder28 && !holder28.isDestroyed()) { try { holder28.destroy(); } catch { /* 尽力 */ } }
+        removeSeededExplorerPin482(rep);
+      }
+    }
+
     // 参照窗 = 控制器自开的真最大化窗（工单241 的 IsZoomed 真值口径：真最大化 ⇒ 收栏档）
     // 前置建法（工单243 实测校准）：Electron 的 maximize() + 强制前台**偶发几十秒才生效**
     // （前台锁 + zoomed 态落定双慢），验收槽白等 37–47s ⇒ 改为「原生 API 直上 + 逐拍核验」：
@@ -4362,6 +4679,16 @@ static class Probe {
       await sleep(400);
     }
 
+    // ================================================================
+    // P28 启动反馈（工单483，spec #472 点击 SLO ③）：工具图标点击 ≤1s「启动中」视觉态
+    // + 启动命令发出 ≤1s（事件戳口径，首窗判据盲区不重蹈——#478 归因）+ 工具就绪后
+    // 收敛回常态。探针 = 复用 P16 夹具（五枚皆 WinForms 最小窗副本，真任务栏合格窗；
+    // P21 复用 P18 探针同款先例——独立种入会与 P16 五探针争推荐位分数，首轮真机实证）。
+    // 2026-11-14 双轴评审 L6：此处原残留一段旧版头注（探针形还写着 cmd 副本），系
+    // 工单483 改写探针形态时留下的漂移死注释，已删——现行形态以上方框注为准。
+    // ================================================================
+
+
   } catch (err) {
     rep.fail(`电池异常: ${err && err.stack || err}`);
   } finally {
@@ -4409,6 +4736,7 @@ static class Probe {
     const trashFails26 = [];
     try {
       deskRoot26 = (p16 && p16.desktopRoot) || userDesktopRootP16();
+      // 工单483 起残留扫描覆盖 P28 探针家族（新夹具纳入轮末自检——增段配套，非放松断言）
       residue26 = fs.readdirSync(deskRoot26).filter((n) => /^DECK-P16-.*\.lnk$/i.test(n));
       const tf26 = trashFiles(residue26.map((n) => path.join(deskRoot26, n)));
       trashFails26.push(...tf26.map((f) => `${f.name}: ${f.why}`));

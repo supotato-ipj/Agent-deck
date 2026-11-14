@@ -33,7 +33,9 @@ describe('还原账接线（工单261）：守卫 before-quit/panel-exit（路�
   it('before-quit 挂 appbar 账复原（outer-quit 径）', () => {
     const at = src.indexOf("restoreCarry('outer-quit')")
     expect(at).toBeGreaterThanOrEqual(0)
-    expect(src.slice(Math.max(0, at - 200), at)).toContain('before-quit')
+    // 窗口 400 字符（工单479 起处理器体内先落拉回退场闩：quitting 置位 + 退避定时器
+    // 清理——防止守卫退场序列中退避定时器再拉新面板；接线意图不变，字符窗随事实放宽）
+    expect(src.slice(Math.max(0, at - 400), at)).toContain('before-quit')
   })
 })
 

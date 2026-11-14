@@ -13,7 +13,7 @@
 import { Service } from 'cordis'
 import type { Context } from 'cordis'
 import type { ConversationSessionView, SessionPreviewState, SessionPreviewToolGroup } from '../../shared/contract'
-import { defaultSessionRoots } from '../scanners'
+import { defaultSessionRoots, SqlitePool } from '../scanners'
 import type { SessionRoots } from '../scanners'
 import { kimicodePreviewRows } from '../scanners/kimicode'
 import { minimaxcodePreviewRows } from '../scanners/minimaxcode'
@@ -52,8 +52,9 @@ export interface SessionPreviewServiceOptions {
   deps?: SessionPreviewServiceDeps
 }
 
-/** 缺省行读取：逐工具隔离——单工具失败保留其余三工具（ADR-0003 同语义） */
-export function readPreviewRows(roots: SessionRoots, nowMs: number, log?: (e: Record<string, unknown>) => void): SessionPreviewRowInputs {
+/** 缺省行读取：逐工具隔离——单工具失败保留其余三工具（ADR-0003 同语义）；
+ * SQLite 族（zcode/minimaxcode）经池复用连接（工单477 束②，气泡打开期 1Hz 重建不再每秒重开）。 */
+export function readPreviewRows(roots: SessionRoots, nowMs: number, log?: (e: Record<string, unknown>) => void, pool?: SqlitePool): SessionPreviewRowInputs {
   const safe = <T,>(tool: string, fn: () => T, fallback: T): T => {
     try {
       return fn()
@@ -65,9 +66,9 @@ export function readPreviewRows(roots: SessionRoots, nowMs: number, log?: (e: Re
   const root = (key: string): string => roots[key] ?? ''
   return {
     qoder: safe('qodercn', () => (root('qoder') ? qoderPreviewRows(root('qoder'), nowMs) : []), []),
-    zcode: safe('zcode', () => (root('zcode') ? zcodePreviewRows(root('zcode'), nowMs) : []), []),
+    zcode: safe('zcode', () => (root('zcode') ? zcodePreviewRows(root('zcode'), nowMs, pool) : []), []),
     kimicode: safe('kimicode', () => (root('kimicode') ? kimicodePreviewRows(root('kimicode'), nowMs) : []), []),
-    minimaxcode: safe('minimaxcode', () => (root('minimaxcode') ? minimaxcodePreviewRows(root('minimaxcode'), nowMs) : []), []),
+    minimaxcode: safe('minimaxcode', () => (root('minimaxcode') ? minimaxcodePreviewRows(root('minimaxcode'), nowMs, pool) : []), []),
   }
 }
 
@@ -75,6 +76,8 @@ export class SessionPreviewService extends Service {
   private readonly enabledFlag: boolean
   private readonly roots: SessionRoots
   private readonly deps: SessionPreviewServiceDeps
+  /** 会话 SQLite 连接池（工单477 束②）：气泡打开期 1Hz 重建复用只读连接，拆卸即清账 */
+  private readonly pool = new SqlitePool()
   private openFlag = false
   private groups: SessionPreviewToolGroup[] = []
   private generatedAt = 0
@@ -88,6 +91,7 @@ export class SessionPreviewService extends Service {
     this.deps = { ...(options.deps ?? {}) }
     if (!this.deps.log && options.log) this.deps.log = options.log
     ctx.on('dispose', () => this.dispose())
+    ctx.on('dispose', () => this.pool.closeAll())
   }
 
   private now(): number {
@@ -111,7 +115,7 @@ export class SessionPreviewService extends Service {
       this.groups = []
       return
     }
-    const rows = (this.deps.readRows ?? ((r, n) => readPreviewRows(r, n, (e) => this.log(e))))(this.roots, nowMs)
+    const rows = (this.deps.readRows ?? ((r, n) => readPreviewRows(r, n, (e) => this.log(e), this.pool)))(this.roots, nowMs)
     let dsh: ConversationSessionView[] = []
     try {
       dsh = this.deps.dshSessions?.() ?? []

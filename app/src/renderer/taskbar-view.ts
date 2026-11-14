@@ -4,6 +4,7 @@
 // 本模块不碰 DOM/Node——fake bridge 契约测试在 Node 中直接驱动（menu-shell 先例）。
 import type { BridgeEventName, BridgeEvents, BridgeMethod, BridgeMethods, ClockState, ConversationSessionView, DesktopWorkspaceState, HardwareGauges, TaskbarActivateAction, TaskbarAppClickAction, TaskbarButtonId, TaskbarDragDrop, TaskbarExcludedEntry, TaskbarMetric, TaskbarRecommendation, TaskbarState, TaskbarSystemAction, TaskbarTrayButton, TaskbarTrayEntry, TaskbarTrayOverflowLimit, TaskbarTrayPinnedEntry, TaskbarTrayPixels, TaskbarWindowRef } from '../shared/contract'
 import { planAppsOverflow, planTrayOverflow, trayPinnedMatcher } from '../shared/overflow.js'
+import { hhmmOf } from './clock-text.js'
 
 /** 渲染层桥接面（window.deck.bridge 的结构子集；测试注入 fake） */
 export interface TaskbarBridge {
@@ -360,10 +361,9 @@ export const METRIC_SLOT_TEXT: Record<TaskbarMetric, string> = {
   'net-up': 'UP 1000.00KB/s',
 }
 
-/** 时钟格文本：本地 HH:MM（两位补零） */
+/** 时钟格文本：本地 HH:MM（两位补零）——与面板时钟卡共用同一实现（工单477 束③时钟去秒单源） */
 export function formatClock(clock: ClockState): string {
-  const d = new Date(clock.epochMs)
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+  return hhmmOf(clock.epochMs)
 }
 
 /**
