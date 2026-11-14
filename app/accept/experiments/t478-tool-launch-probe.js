@@ -109,11 +109,21 @@ function eligibleOf(exePath) {
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
+const { execSync } = require('child_process')
+function pidsOf(exePath) {
+  const base = exePath.split('\\').pop()
+  try {
+    const out = execSync(`powershell -NoProfile -Command "(Get-Process -Name '${base.replace(/\.exe$/i, '')}' -ErrorAction SilentlyContinue).Id" `, { encoding: 'utf8' })
+    return out.split(/\r?\n/).map((s) => parseInt(s.trim(), 10)).filter((n) => Number.isFinite(n) && n > 0)
+  } catch { return [] }
+}
+
 app.whenReady().then(async () => {
   const evidence = { startedAt: new Date().toISOString(), targets: [] }
   for (const t of targets) {
     const row = { label: t.label, exe: t.exe }
     if (!t.exe) { row.error = '手钉清单无此路径'; evidence.targets.push(row); continue }
+    row.pidsBefore = pidsOf(t.exe)
     const before = eligibleOf(t.exe)
     row.runningBefore = before.length > 0
     if (before.length > 0) {
@@ -146,23 +156,31 @@ app.whenReady().then(async () => {
     }
     evidence.targets.push(row)
   }
-  // 清场：关闭本轮新开的合格窗（WM_CLOSE 优雅径），核对无残留
+  // 清场：WM_CLOSE 优雅径 → 兜底只收割「本轮新增」的进程（pid 快照差集），绝不碰已有进程
   await sleep(1500)
   const cleanup = []
   for (const row of evidence.targets) {
     if (!row.firstWindow) continue
-    const before = []
     PostMessageW(row.firstWindow.hwnd, 0x0010, 0, 0)
-    cleanup.push({ hwnd: row.firstWindow.hwnd, wmClosePosted: true })
+    cleanup.push({ label: row.label, hwnd: row.firstWindow.hwnd, wmClosePosted: true })
   }
-  await sleep(2000)
-  evidence.cleanup = cleanup
+  await sleep(3000)
+  for (const row of evidence.targets) {
+    if (!row.exe || row.runningBefore) continue
+    const after = pidsOf(row.exe)
+    const spawned = after.filter((p) => !row.pidsBefore.includes(p))
+    row.pidsSpawnedByProbe = spawned
+    if (spawned.length > 0) {
+      try { execSync(`taskkill /PID ${spawned.join(' /PID ')} /T /F`, { encoding: 'utf8' }) } catch (e) { row.killError = String(e).slice(0, 200) }
+    }
+  }
+  await sleep(1000)
   evidence.residual = []
   for (const row of evidence.targets) {
-    if (row.firstWindow) {
-      const still = eligibleOf(row.exe).some((w) => w.hwnd === row.firstWindow.hwnd)
-      evidence.residual.push({ label: row.label, hwnd: row.firstWindow.hwnd, stillVisible: still })
-    }
+    if (!row.exe) continue
+    const afterPids = pidsOf(row.exe)
+    const residualPids = row.runningBefore ? [] : afterPids.filter((p) => !row.pidsBefore.includes(p))
+    evidence.residual.push({ label: row.label, residualNewPids: residualPids, stillWindow: row.firstWindow ? eligibleOf(row.exe).some((w) => w.hwnd === row.firstWindow.hwnd) : null })
   }
   evidence.finishedAt = new Date().toISOString()
   const out = process.env.T478_EVIDENCE_PATH || 't478-tool-launch-evidence.json'
