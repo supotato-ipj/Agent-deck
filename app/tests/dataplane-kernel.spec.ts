@@ -54,20 +54,20 @@ describe('数据面内核（采集子进程的服务装配）', () => {
       sessionRoots: { qoder: root },
       hardwareSources: fakeHardware(),
       tickIntervalMs: 10,
-      sessionIntervalMs: 250, // 扫描拍 250ms（拍长 10ms；余量放宽给 Windows 定时器抖动）
+      sessionIntervalMs: 2000, // 扫描拍 2s（拍长 10ms）：余量放宽给全量门禁并行抢占下的定时器抖动
       hardwareIntervalMs: 0,
       usageIntervalMs: 0,
       onSnapshot: (s) => snapshots.push(s),
     })
     await ctx.start()
     try {
-      await new Promise((r) => setTimeout(r, 50))
-      // 扫描拍未到（首次到期在 ~250ms）：此刻新会话就算已落盘也不上表——不随每拍快照即时刷新
+      await new Promise((r) => setTimeout(r, 100))
+      // 扫描拍未到（首次到期在 ~2s）：此刻新会话就算已落盘也不上表——不随每拍快照即时刷新
       fx.addSession('probe', 5, [rec('assistant', 'text', 'D:/work/probe')])
-      await new Promise((r) => setTimeout(r, 60)) // t≈110ms+抖动，仍距到期线 ~140ms
+      await new Promise((r) => setTimeout(r, 200)) // t≈300ms+抢占膨胀，仍距到期线远（>4x 膨胀才越线）
       const beforeDue = snapshots.filter((s) => s.sessions.some((x) => x.id === 'probe'))
       expect(beforeDue.length).toBe(0)
-      await new Promise((r) => setTimeout(r, 250)) // t≈360ms+抖动 ≥ 周期+一拍：必已上表
+      await new Promise((r) => setTimeout(r, 2000)) // t≈2.3s+ ≥ 周期+一拍：必已上表（setTimeout 只会晚不会早）
       const afterDue = snapshots.filter((s) => s.sessions.some((x) => x.id === 'probe'))
       expect(afterDue.length).toBeGreaterThan(0)
       // 快照本身仍在走（桌面/硬件段每拍刷新不受会话降频拖累）
@@ -75,7 +75,7 @@ describe('数据面内核（采集子进程的服务装配）', () => {
     } finally {
       await ctx.stop()
     }
-  })
+  }, 30_000) // 全量门禁并行抢占下的等待预算（同工单30 粘贴测试先例），断言不动
 
   it('采样轮出口给完整快照段：时钟/会话/硬件/桌面（图标面缺席不影响扫描编排；qoder 段随工单03 退役）', async () => {
     const dir = tmpDir()
