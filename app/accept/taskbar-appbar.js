@@ -224,16 +224,29 @@ function countAutohideFlaps(since) {
     + tape.all('taskbar-autohide-reattach-failed', undefined, { since }).length;
 }
 
-/** 退收栏「终点 visible」的两跳容忍等待（R3 磁带实证：解最大化动画期 250ms 轮询合法走
- *  retract→yield→visible 两跳）：retract-lifted 落下后若 mode 非 visible，续等 yield-lifted；
- *  拿到 visible 终点（直达或两跳）返回该事件，否则 null。P6/P7 收尾/P10c/P11/P16 同式。 */
+/** 退收栏「终点 visible」的链式等待（断言语义不变：栏面回到常驻必须有迁移存证且终态
+ *  mode=visible；超时即 null）。工单475 改段理由（t475-r1 轮事件流实证，51 电池 jsonl
+ *  05:20:20.005-20.388）：三态裁决事件化后（60ms 防抖冲刷拍），shell 面（Win 键注入
+ *  期的 XamlExplorerHostIslandWindow 等）130ms 级真全屏瞬态被**可靠观测**——旧 250ms
+ *  轮询大概率整拍跳过同一瞬态——于是合法产生 retract→yield→retract→visible 的**短链**
+ *  （瞬态期分屏会话仍在，yield 退场后收栏档恢复，随后会话结束才落 visible）。旧「两跳」
+ *  形状（首个 retract-lifted + 至多一次续跳）读到中间跳的 yield-lifted(mode=retract) 即
+ *  提前返回 null，漏掉 250ms 后落下的真终点 retract-lifted(mode=visible)——helper 的
+ *  跳数模型不再匹配证据链形状，非面板行为回归（终点事实逐字在流）。改为沿 lift 链轮询
+ *  全窗：任意时刻窗内出现 mode=visible 的 lift 存证即返回——比两跳形状更贴断言本义
+ *  （「终点 visible」），对任意跳数的合法链都成立，断言强度只增不减。P6/P7 收尾/P10c/
+ *  P11/P16 同式。 */
 async function waitSettledVisible(since, timeoutMs) {
-  const lifted = await tape.wait('taskbar-retract-lifted', undefined, { since, timeoutMs });
-  if (lifted && lifted.mode !== 'visible') {
-    const yl = await tape.wait('taskbar-yield-lifted', undefined, { since, timeoutMs });
-    return yl && yl.mode === 'visible' ? yl : null;
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const visibleLift = [...tape.all('taskbar-retract-lifted', undefined, { since }),
+      ...tape.all('taskbar-yield-lifted', undefined, { since })]
+      .filter((e) => e.mode === 'visible')
+      .sort((a, b) => a.t - b.t)[0];
+    if (visibleLift) return visibleLift;
+    await sleep(100);
   }
-  return lifted || null;
+  return null;
 }
 
 /** 当前主屏模式快照（ENUM_CURRENT_SETTINGS，完整 DEVMODE 原文供还原） */
