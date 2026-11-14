@@ -2339,12 +2339,15 @@ async function main() {
             if (!procUp28) await sleep(300);
           }
           spawnSync('taskkill', ['/IM', probeImg28, '/T', '/F'], { stdio: 'ignore' }); // 探针收杀（P16 启动臂同款）
-          const ac3ok28 = converged28 !== null && procUp28;
+          // 进程证据双通道（工单483 第十轮实锤：高负载下 tasklist /FI 轮询可空手而归，
+          // 而标题含镜像名的顶层窗在场即进程活着的直接证据）——任一通道在场即算出场
+          const procUpOk28 = procUp28 || probeHwnd28 !== null;
+          const ac3ok28 = converged28 !== null && procUpOk28;
           if (ac3ok28) {
-            rep.pass(`P28 就绪收敛：探针窗出场（hwnd=${probeHwnd28 || 'n/a'}）→ 运行条目上栏（.tb-app.running）`
+            rep.pass(`P28 就绪收敛：探针窗出场（hwnd=${probeHwnd28 || 'n/a'}，tasklist=${procUp28 ? '在场' : '未命中'}）→ 运行条目上栏（.tb-app.running）`
               + `且启动中态消失（launching 全清）——状态机收敛回常态`);
           } else {
-            rep.fail(`P28 收敛断言：收敛=${converged28 !== null} 探针进程=${procUp28 ? '在场已收杀' : '未出场'}`
+            rep.fail(`P28 收敛断言：收敛=${converged28 !== null} 探针进程=${procUpOk28 ? '在场已收杀' : '未出场'}`
               + ` 探针窗=${probeHwnd28 ? '在场' : '未出场'} launching位=${JSON.stringify(await launchingDom28())}`);
           }
         }
