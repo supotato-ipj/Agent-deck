@@ -449,7 +449,13 @@ describe('真仓库现状全绿（CI 执行力所在，工单115）', () => {
     // 可见/已开再点置前不隐藏（窗语义 ADR-0018）——真实窗创建与前台语义是 jsdom 单测
     // 断不到的面，增段条件①；二态裁决/图标/分发本体由 taskbar renderer 单测族钉，增段
     // 条件②；busy 点亮不进段——需在途 turn 后端会话，重且不增信）。
-    expect(total).toBe(197) // estSeconds 8→3 校准（r1 实跑 took≈0.5s，guard 托管轮段账佐证）
+    // 197 → 198：工单473 增段——03-battery 电池增 P473（常驻事件日志，ADR-0032：零注入
+    // 生产形态默认开启、启动阶段耗时戳族在档、哨兵 sentinel-armed 生产形态武装在证、
+    // 种满三档到上限的真机轮转收口与磁盘总量有界、敏感内容零在档逐值扫描——「零注入
+    // 面板真在写 userData 形落点」与「真机轮转链实际收口」是单测断不到的系统状态面
+    // （投影/轮转裁决纯函数与写入器已由 resident-event-log.spec 28 例钉，增段条件②），
+    // 增段条件①；段内隔离落点 DECK_RESIDENT_EVENT_LOG 不写用户生产常驻档）。
+    expect(total).toBe(198) // estSeconds 8→3 校准（r1 实跑 took≈0.5s，guard 托管轮段账佐证）
     for (const b of manifest!.batteries.filter((x) => x.kind !== 'experiment')) {
       for (const s of b.segments || []) {
         const eff = (s.areas && s.areas.length) ? s.areas : (b.areas || [])
