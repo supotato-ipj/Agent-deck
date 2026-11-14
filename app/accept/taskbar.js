@@ -2255,16 +2255,22 @@ async function main() {
         if (!pt28) {
           rep.fail(`P28 探针几何缺位（推荐位在场但取不到图标矩形）：${JSON.stringify((((latestGeometry(null) || {}).recommendations) || []).map((r) => r.name))}`);
         } else {
-          // launching 态 DOM 查询（条带页按 data-exe 精确寻址；CSS 属性选择器串转义反斜杠）
-          const cssEsc28 = probe28.exe.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+          // launching 态 DOM 查询（条带页按 data-exe 精确寻址——遍历比较 dataset.exe，
+          // 不用 CSS 属性选择器：路径反斜杠在 JS/CSS 双层转义里层数易错，第六轮真机实锤
+          // 类名在而选择器不中）
+          const exeLit28 = JSON.stringify(probe28.exe);
           const launchingDom28 = () => cdpEval(`(() => {
-            const recEl = document.querySelector('#pill-recs .tb-rec.launching[data-exe="${cssEsc28}"]');
-            const appEl = document.querySelector('.tb-app.running[data-exe="${cssEsc28}"]');
+            const exe = ${exeLit28};
+            const recEl = [...document.querySelectorAll('#pill-recs .tb-rec.launching')].find((n) => (n.dataset.exe || '') === exe);
+            const appEl = [...document.querySelectorAll('.tb-app.running')].find((n) => (n.dataset.exe || '') === exe);
             const all = [...document.querySelectorAll('.launching')].map((n) => n.dataset.exe || '?');
             return { recLaunching: !!recEl, appRunning: !!appEl, all };
           })()`, TASKBAR_TITLE);
           const consoleWins28 = () => new Set(win32.topLevelWindows()
             .filter((h) => ['ConsoleWindowClass', 'CASCADIA_HOSTING_WINDOW_CLASS'].includes(win32.className(h))));
+          // 新窗基线在点击**前**取（第六轮真机实锤：取在臂① 之后时探针窗已被计入基线，
+          // 「新窗出场」检测恒空）
+          const before28 = consoleWins28();
 
           // —— 臂① 真点击 → AC1 ≤1s「启动中」+ AC2 事件戳 ≤1s ——
           // tape 过滤带 t ≥ clickT0 时间门：事件磁带自轮首起算，不设门会把 P16② 同名
@@ -2299,7 +2305,6 @@ async function main() {
           }
 
           // —— 臂② AC3 收敛：探针窗出场 → 运行条目上栏 → 启动中态消失 ——
-          const before28 = consoleWins28();
           let consoleHwnd28 = null;
           for (let i = 0; i < 25 && !consoleHwnd28; i++) {
             await sleep(400);
