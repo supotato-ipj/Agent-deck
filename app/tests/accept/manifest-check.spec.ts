@@ -455,7 +455,14 @@ describe('真仓库现状全绿（CI 执行力所在，工单115）', () => {
     // 面板真在写 userData 形落点」与「真机轮转链实际收口」是单测断不到的系统状态面
     // （投影/轮转裁决纯函数与写入器已由 resident-event-log.spec 28 例钉，增段条件②），
     // 增段条件①；段内隔离落点 DECK_RESIDENT_EVENT_LOG 不写用户生产常驻档）。
-    expect(total).toBe(198) // estSeconds 8→3 校准（r1 实跑 took≈0.5s，guard 托管轮段账佐证）
+    // 198 → 200：工单479 增段——03-battery 电池增 P479B/P479 两段（拉回与冻结告警，ADR-0032）：
+    // P479B 冻结托盘告警（忙环注入失能档 → renderer-frozen 记账 + freeze-alarm 托盘告警恰一条
+    // shown=true + 无自动杀拉——真机托盘气球弹出与守卫未被惊动是单测断不到的面，增段条件①；
+    // 告警一次闩由 freeze-alarm.spec 钉，增段条件②）；P479 拉回（杀面板→守卫退避重拉+新代次
+    // 接管任务栏、连崩达上限→pullback-exhausted 留证+守卫终局退场+零越界重拉——真机进程
+    // 生死与任务栏接管是单测断不到的面，增段条件①；退避表/上限裁决由 pullback.spec 钉，
+    // 增段条件②）。裁决纯函数与守卫薄壳的分工见 pullback.ts 头注。
+    expect(total).toBe(200) // estSeconds 8→3 校准（r1 实跑 took≈0.5s，guard 托管轮段账佐证）
     for (const b of manifest!.batteries.filter((x) => x.kind !== 'experiment')) {
       for (const s of b.segments || []) {
         const eff = (s.areas && s.areas.length) ? s.areas : (b.areas || [])

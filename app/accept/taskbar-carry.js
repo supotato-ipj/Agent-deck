@@ -12,7 +12,7 @@
 //        （路径①：面板 dispose 还账清账；可见性以退出后的控制器独立视图事实为准
 //        ——置位后 WS_VISIBLE 位被翻开且退出置位不回落，可见性复原由 appbar 复原
 //        本身达成、taskbar-restored 事件确证静默，R1 轮磁带 + spike 附记 + P9 判读）
-//     A3 崩溃路径（taskkill /F /T 面板树，守卫存活）→ 守卫以 panel-exit 双兜底
+//     A3 崩溃路径（taskkill /F /T 面板树，守卫存活）→ 守卫双兜底（工单479 起挂在拉回序列上，reason=pullback-respawn）
 //        （appbar 从落盘账复原——守卫不持面板内存账；可见性同上以视图事实为准）
 //     A4 进程被杀路径（守卫 + 面板先后强杀，控制台信号同杀的等价现场）→
 //        还原守护（icon-restore-watch）以 guard-dead 双兜底（appbar 从落盘账复原）
@@ -155,9 +155,10 @@ function stuckRectsSettings() {
 
 /**
  * 定点杀面板树（**只杀面板，不杀守卫**）：A3 崩溃路径的段前提就是「面板整树死、守卫存活」，
- * 守卫才能以 panel-exit 还原原生任务栏。**故此处不迁句柄 stop()**——句柄 stop() 会连带
- * 终结发射子进程（＝守卫载体），段前提不成立。「验证消失」由 A3 既有 waitExit(child, 15000)
- * 承担（守卫随面板死亡而退＝面板已死的证据）。
+ * 守卫才能还原原生任务栏（工单479 起挂在拉回序列上，reason=pullback-respawn）。**故此处不迁句柄 stop()**——句柄 stop() 会连带
+ * 终结发射子进程（＝守卫载体），段前提不成立。「验证消失」由段内 pid 存在性轮询直证
+ * （工单479 起守卫不再随面板死亡退场——拉回按退避重拉，「守卫随退」的旧证据链退役；
+ * 段末守卫链整树清场，防拉回代次污染下一段前置）。
  */
 function killTree(pid) {
   if (pid) spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore' });
@@ -294,7 +295,7 @@ async function runSegments() {
     }
     child = null;
 
-    // A3 崩溃路径（taskkill /F /T 面板树，守卫存活）→ 守卫 panel-exit 还原
+    // A3 崩溃路径（taskkill /F /T 面板树，守卫存活）→ 守卫双兜底（工单479 起 reason=pullback-respawn）
     rep.beginSegment('A3');
     const sinceA3 = Date.now();
     forceForeground(hwndOf(holder)); // holder 仍最大化——钉回前台，收栏在开拍即成立
@@ -311,20 +312,30 @@ async function runSegments() {
     const engagedA3 = await waitMs(() => (appbarState() & ABS_AUTOHIDE_BIT) !== 0, 5000);
     if (!retractEvA3 || engagedA3 < 0) throw new Error('A3 收栏档未达成（前置不成立）');
     killTree(panelPid); // 模拟崩溃/强杀：面板整树死，守卫存活（**不迁句柄**——见 killTree 注）
-    const guardExited3 = await waitExit(child, 15000);
+    // 工单479 改段说明（旧契约「守卫随面板退场」已退役）：拉回上线后面板异常退出不再是
+    // 守卫终局——守卫先走还原三兜底再按退避重拉（pullback-* 存证与上限断言归属 479 自己
+    // 的段）。「守卫随退=面板已死」的旧证据链随之退役，面板已死改由 pid 存在性直证。
+    const panelDead3 = await waitMs(() => !pidAlive(panelPid), 5000);
     const restoredA3 = await waitNativeVisible(true, 8000); // 可见性以控制器独立视图事实为准（置位形态，R1/P9 判读）
     // 工单261 断言：appbar 状态复原——面板被强杀（路径① 未走），守卫从**落盘账**读
     // 复原目标（不持面板内存账，票面「还原账全路径扩展」的路径② 现场证据）
     const appbarOkA3 = await waitMs(() => appbarState() === appbarBaseline, 8000);
     const autohideEvA3 = await tape.wait('taskbar-autohide-restored',
-      (e) => e.reason === 'panel-exit', { since: sinceA3, timeoutMs: 8000 });
-    if (restoredA3 && appbarOkA3 >= 0 && autohideEvA3) {
+      // 工单479 起崩溃径的守卫侧复原挂在拉回序列上：reason=pullback-respawn（还原→重拉），
+      // 旧 panel-exit 词只余干净退出径——两词都认，认的是「守卫从落盘账复原」这同一事实。
+      (e) => e.reason === 'panel-exit' || e.reason === 'pullback-respawn', { since: sinceA3, timeoutMs: 8000 });
+    if (restoredA3 && appbarOkA3 >= 0 && autohideEvA3 && panelDead3 >= 0) {
       rep.pass(`A3 崩溃路径：面板被 taskkill /F 后守卫双兜底（可见性=控制器独立视图事实 + appbar 落盘账复原`
-        + ` reason=panel-exit attempts=${autohideEvA3.attempts}，读数 ${appbarState()}＝基线 ${appbarBaseline}，守卫随退=${guardExited3}）`);
+        + ` reason=${autohideEvA3.reason} attempts=${autohideEvA3.attempts}，读数 ${appbarState()}＝基线 ${appbarBaseline}，面板已死=${panelDead3 >= 0}）`);
     } else {
       rep.fail(`A3 视图还原=${restoredA3} `
-        + `appbar复原=${appbarOkA3}ms 状态=${appbarState()}/${appbarBaseline} autohide存证=${JSON.stringify(autohideEvA3)} 守卫退=${guardExited3}`);
+        + `appbar复原=${appbarOkA3}ms 状态=${appbarState()}/${appbarBaseline} autohide存证=${JSON.stringify(autohideEvA3)} 面板已死=${panelDead3 >= 0}`);
     }
+    // 清场（工单479 下确定性必需）：还原证据落袋后立刻整树终结守卫——不清场则拉回的
+    // 退避定时器/重拉代次会在 A4 开拍前重新接管原生任务栏，污染 A4 前置。/T 连带清偿
+    // 在逃/在飞的拉回代次；守卫死后还原守护兜底（图标若被重拉代次重藏则翻回）。
+    spawnSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore' });
+    await waitExit(child, 5000);
     child = null;
 
     // A4 进程被杀路径：守卫 + 面板先后强杀（控制台信号同杀的等价现场——守卫进程内
@@ -419,7 +430,7 @@ async function runSegments() {
     }
     child = null;
 
-    // A6 崩溃路径（taskkill /F /T 面板树，守卫存活，普通态出发）→ 守卫 panel-exit 从落盘账复原
+    // A6 崩溃路径（taskkill /F /T 面板树，守卫存活，普通态出发）→ 守卫从落盘账复原（工单479 起 reason=pullback-respawn）
     rep.beginSegment('A6');
     const sinceA6 = Date.now();
     child = handle.launch({ mode: 'full', stdio: 'drain' }).child;
@@ -435,19 +446,25 @@ async function runSegments() {
       throw new Error(`A6 普通档前置不成立（接管=${!!takeEvA6} 置位=${!!setEvA6} 读回=${appbarState()} 收栏档=${straysA6.length}）`);
     }
     killTree(panelPid);
-    const guardExitedA6 = await waitExit(child, 15000);
+    // 工单479 改段说明（同 A3）：拉回上线后守卫不再随面板死亡退场，「守卫随退」证据链
+    // 退役，面板已死改由 pid 存在性直证；还原断言半边（工单50/261）原样保留。
+    const panelDead6 = await waitMs(() => !pidAlive(panelPid), 5000);
     const restoredA6 = await waitNativeVisible(true, 8000);
     const appbarOkA6 = await waitMs(() => appbarState() === appbarBaseline, 8000);
     const autohideEvA6 = await tape.wait('taskbar-autohide-restored',
-      (e) => e.reason === 'panel-exit', { since: sinceA6, timeoutMs: 8000 });
-    if (restoredA6 && appbarOkA6 >= 0 && autohideEvA6 && guardExitedA6) {
-      rep.pass(`A6 崩溃路径（普通态出发）：面板被 taskkill /F 后守卫 panel-exit 从落盘账复原（attempts=${autohideEvA6.attempts}，`
+      // 工单479 起崩溃径 reason=pullback-respawn（同 A3 注），旧词只余干净退出径——两词都认。
+      (e) => e.reason === 'panel-exit' || e.reason === 'pullback-respawn', { since: sinceA6, timeoutMs: 8000 });
+    if (restoredA6 && appbarOkA6 >= 0 && autohideEvA6 && panelDead6 >= 0) {
+      rep.pass(`A6 崩溃路径（普通态出发）：面板被 taskkill /F 后守卫 panel-exit 从落盘账复原（reason=${autohideEvA6.reason} attempts=${autohideEvA6.attempts}，`
         + `读数 ${appbarState()}＝基线 ${appbarBaseline}，控制器独立读数；账记于普通态接管建立拍）`
-        + `＋原生任务栏还原（视图事实，守卫随退=${guardExitedA6}）`);
+        + `＋原生任务栏还原（视图事实，面板已死=${panelDead6 >= 0}）`);
     } else {
       rep.fail(`A6 视图还原=${restoredA6} appbar复原=${appbarOkA6}ms 状态=${appbarState()}/${appbarBaseline} `
-        + `autohide存证=${JSON.stringify(autohideEvA6)} 守卫退=${guardExitedA6} 接管存证=${JSON.stringify(takeEvA6)}`);
+        + `autohide存证=${JSON.stringify(autohideEvA6)} 面板已死=${panelDead6 >= 0} 接管存证=${JSON.stringify(takeEvA6)}`);
     }
+    // 清场（工单479 下确定性必需，同 A3）：整树终结守卫，防拉回代次污染 A7 前置。
+    spawnSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore' });
+    await waitExit(child, 5000);
     child = null;
 
     // A7 进程被杀路径（守卫 + 面板先后强杀，普通态出发）→ 还原守护以 guard-dead 从落盘账复原后自退

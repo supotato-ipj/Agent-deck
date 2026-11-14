@@ -74,7 +74,9 @@ export function wireBridgeIpc(win: BrowserWindow, bridge: BridgeService, events:
  * hooks.pin：键盘模式进出的 z 序恢复动作——面板钉底（默认），任务栏窗重申置顶。
  * hooks.sentinelHeartbeat：哨兵失能档发射武装（#91）——只有接了渲染层活性心跳的窗
  * （面板）才武装；静默对没接心跳的窗（任务栏条带）没有失能语义，武装了全是伪档。 */
-export function wireHostIpc(win: BrowserWindow, tracker: HotzoneTracker | null, log: EventLog | null, hooks: { pin?: (w: BrowserWindow) => void; sentinelHeartbeat?: boolean; onNotify?: (type: string, payload: Record<string, unknown> | undefined) => void; onPreviewLayout?: (rects: Array<{ hwnd: number; x: number; y: number; w: number; h: number }>) => void } = {}): void {
+// hooks.onFreezeEvent（工单479）：哨兵失能档发射/episode 闭合的外露钩子（'frozen'/
+// 'unfrozen'）——冻结托盘告警的接线缝（告警裁决在 freeze-alarm.ts，本层不判）。
+export function wireHostIpc(win: BrowserWindow, tracker: HotzoneTracker | null, log: EventLog | null, hooks: { pin?: (w: BrowserWindow) => void; sentinelHeartbeat?: boolean; onNotify?: (type: string, payload: Record<string, unknown> | undefined) => void; onPreviewLayout?: (rects: Array<{ hwnd: number; x: number; y: number; w: number; h: number }>) => void; onFreezeEvent?: (event: 'frozen' | 'unfrozen') => void } = {}): void {
   const pin = hooks.pin ?? pinToBottom
   const onHotzones = (event: Electron.IpcMainEvent, rects: HotzoneRect[]) => {
     if (event.sender !== win.webContents) return
@@ -128,7 +130,7 @@ export function wireHostIpc(win: BrowserWindow, tracker: HotzoneTracker | null, 
   ipcMain.on('deck:host-preview-layout', onPreviewLayout)
   ipcMain.on('deck:host-keyboard-mode', onKeyboardMode)
   ipcMain.on('deck:host-drag-session', onDragSession)
-  wireRenderSentinel(win, log, { heartbeat: hooks.sentinelHeartbeat ?? false })
+  wireRenderSentinel(win, log, { heartbeat: hooks.sentinelHeartbeat ?? false, onFreezeEvent: hooks.onFreezeEvent })
   win.once('closed', () => {
     ipcMain.removeListener('deck:host-set-hotzones', onHotzones)
     ipcMain.removeListener('deck:host-notify', onNotify)
@@ -152,7 +154,7 @@ export function wireHostIpc(win: BrowserWindow, tracker: HotzoneTracker | null, 
  * deck:host-beat 同走此通道，见 preload/渲染层 main.ts）；仅面板窗接活性心跳，故失能档
  * 发射（renderer-frozen / renderer-unfrozen 闭合）只在 heartbeat=true 时接线——没接心跳的
  * 窗静默没有失能语义（工单94 口径）。armed 存证标记「武装在证」，验收断言找它。 */
-function wireRenderSentinel(win: BrowserWindow, log: EventLog | null, opts: { heartbeat?: boolean } = {}): void {
+function wireRenderSentinel(win: BrowserWindow, log: EventLog | null, opts: { heartbeat?: boolean; onFreezeEvent?: (event: 'frozen' | 'unfrozen') => void } = {}): void {
   const wc = win.webContents;
   wc.on('unresponsive', () => log?.append({ type: 'renderer-unresponsive' }));
   wc.on('render-process-gone', (_e, d) => log?.append({ type: 'renderer-gone', reason: d.reason, exitCode: d.exitCode }));
@@ -167,17 +169,25 @@ function wireRenderSentinel(win: BrowserWindow, log: EventLog | null, opts: { he
       pid: wc.getOSProcessId(),
     }),
     ...(opts.heartbeat ? {
-      onFrozen: ({ quietMs }) => log.append({
-        type: 'renderer-frozen',
-        quietMs,
-        crashed: wc.isCrashed(),
-        pid: wc.getOSProcessId(),
-      }),
-      onUnfrozen: ({ frozenMs }) => log.append({
-        type: 'renderer-unfrozen',
-        frozenMs,
-        pid: wc.getOSProcessId(),
-      }),
+      onFrozen: ({ quietMs }) => {
+        log.append({
+          type: 'renderer-frozen',
+          quietMs,
+          crashed: wc.isCrashed(),
+          pid: wc.getOSProcessId(),
+        })
+        // 冻结托盘告警外露（工单479）：存证先落、告警钩子后调——钩子抛错不吞存证；
+        // 告警恰一次的裁决在 freeze-alarm.ts（本层只直译上行）。
+        opts.onFreezeEvent?.('frozen')
+      },
+      onUnfrozen: ({ frozenMs }) => {
+        log.append({
+          type: 'renderer-unfrozen',
+          frozenMs,
+          pid: wc.getOSProcessId(),
+        })
+        opts.onFreezeEvent?.('unfrozen')
+      },
     } : {}),
     heartbeatArmed: opts.heartbeat,
     isWindowDestroyed: () => win.isDestroyed(),
