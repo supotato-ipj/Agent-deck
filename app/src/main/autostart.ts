@@ -17,9 +17,17 @@
 // 该脚本必须保持纯 ASCII：Windows PowerShell 5.1 以系统 ANSI 码页读取无 BOM 脚本，
 // UTF-8 注释会变成乱码并直接让解析失败（capture.ps1 / uia-focus.ps1 同此约定）。
 // 决策理由留在本文件，不写进 ps1。
+//
+// 工单481 去同步化（#478 诊断实锤④）：helper 调用从 spawnSync 改异步 spawn——
+// 每次启动同步跑 PowerShell 的形态（热态 1.19s、上界 20s、开机窗口冷态放大数秒）
+// 退役；启动链经 boot-sequence 计划把本模块的调用整体后补（发起不等待），helper
+// 自带显式上界（AUTOSTART_HELPER_BOUND_MS，与旧 spawnSync timeout 同值），超时
+// 终止进程降级放行。滞后哨兵 span 只包 spawn 发起段（同步段近零——冷态 sidecar
+// 的 'autostart' span 读数即去同步化的 W2 正面证据）。
 import fs from 'node:fs'
 import path from 'node:path'
-import { spawnSync } from 'node:child_process'
+import { spawn } from 'node:child_process'
+import { AUTOSTART_HELPER_BOUND_MS, boundWait } from './boot-sequence'
 import { panelLabels } from './lag-sentinel'
 
 /** 本应用自启项文件名（Startup 文件夹内） */
@@ -129,18 +137,45 @@ interface HelperResult {
   error: string
 }
 
-function runHelper(mode: 'read' | 'write', link: string, spec?: ShortcutSpec): HelperResult {
+interface HelperClose {
+  code: number | null
+  stdout: string
+  stderr: string
+  spawnError: string
+}
+
+/**
+ * 异步跑一次 helper（工单481）：spawn 发起段挂滞后哨兵 `autostart` 标签（同步段），
+ * 全程以 boundWait 竞速显式上界——超时终止进程、按超时错误降级返回，不悬挂调用方。
+ */
+async function runHelper(mode: 'read' | 'write', link: string, spec?: ShortcutSpec, boundMs: number = AUTOSTART_HELPER_BOUND_MS): Promise<HelperResult> {
   const args = ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', HELPER, '-Mode', mode, '-Link', link]
   if (spec) {
     args.push('-Target', spec.target, '-LinkArgs', spec.args)
     if (spec.workDir) args.push('-WorkDir', spec.workDir)
   }
-  // 滞后哨兵（工单117）：同步子进程上限 20s（审计 B11，启动段唯一的大滞后源），挂 `autostart` 标签
-  const r = panelLabels.run('autostart', () => spawnSync('powershell.exe', args, { encoding: 'utf8', timeout: 20000 }))
-  if (r.error) return { ok: false, json: null, error: r.error.message }
-  if (r.status !== 0) return { ok: false, json: null, error: `status=${r.status} stderr=${(r.stderr ?? '').trim()}` }
+  const child = panelLabels.run('autostart', () =>
+    spawn('powershell.exe', args, { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true }),
+  )
+  const closed = new Promise<HelperClose>((resolve) => {
+    let stdout = ''
+    let stderr = ''
+    let spawnError = ''
+    child.stdout?.on('data', (d: Buffer) => { stdout += d.toString('utf8') })
+    child.stderr?.on('data', (d: Buffer) => { stderr += d.toString('utf8') })
+    child.on('error', (err) => { spawnError = err.message })
+    child.on('close', (code) => resolve({ code, stdout, stderr, spawnError }))
+  })
+  const outcome = await boundWait(closed, boundMs)
+  if (outcome.kind === 'timeout') {
+    child.kill()
+    return { ok: false, json: null, error: `helper 超时（${boundMs}ms 上界，已终止进程）` }
+  }
+  const r = outcome.value
+  if (r.spawnError) return { ok: false, json: null, error: r.spawnError }
+  if (r.code !== 0) return { ok: false, json: null, error: `status=${r.code} stderr=${r.stderr.trim()}` }
   try {
-    const line = (r.stdout ?? '').trim().split('\n').filter(Boolean).pop() ?? ''
+    const line = r.stdout.trim().split('\n').filter(Boolean).pop() ?? ''
     return { ok: true, json: line ? (JSON.parse(line) as Record<string, unknown>) : null, error: '' }
   } catch (err) {
     return { ok: false, json: null, error: `helper 输出非 JSON：${(err as Error).message} stdout=${r.stdout}` }
@@ -148,8 +183,8 @@ function runHelper(mode: 'read' | 'write', link: string, spec?: ShortcutSpec): H
 }
 
 /** 读一个 .lnk 的目标与参数；不存在读作 null（COM 不可用等真故障则抛，不静默当作不存在） */
-export function readShortcut(link: string): ShortcutSpec | null {
-  const r = runHelper('read', link)
+export async function readShortcut(link: string, boundMs?: number): Promise<ShortcutSpec | null> {
+  const r = await runHelper('read', link, undefined, boundMs)
   if (!r.ok) throw new Error(`读快捷方式失败 ${link}: ${r.error}`)
   if (!r.json || r.json.exists !== true) return null
   return {
@@ -159,9 +194,9 @@ export function readShortcut(link: string): ShortcutSpec | null {
   }
 }
 
-export function writeShortcut(link: string, spec: ShortcutSpec): void {
+export async function writeShortcut(link: string, spec: ShortcutSpec, boundMs?: number): Promise<void> {
   fs.mkdirSync(path.dirname(link), { recursive: true })
-  const r = runHelper('write', link, spec)
+  const r = await runHelper('write', link, spec, boundMs)
   if (!r.ok) throw new Error(`写快捷方式失败 ${link}: ${r.error}`)
 }
 
@@ -183,10 +218,11 @@ export interface AutostartOutcome {
 }
 
 /**
- * 应用自启策略并顺手退役旧链。幂等：每次启动都跑，只在需要时动文件。
- * 失败一律降级为「照常开面板」——自启项写不进去不该挡住桌面。
+ * 应用自启策略并顺手退役旧链（工单481 起为异步：启动链「发起不等待」，本函数
+ * 全程不阻塞主线程——helper 上界内超时终止进程降级放行）。幂等：每次启动都跑，
+ * 只在需要时动文件。失败一律降级为「照常开面板」——自启项写不进去不该挡住桌面。
  */
-export function applyAutostart(options: {
+export async function applyAutostart(options: {
   enabled: boolean
   /** config.autostart.appDir：声明过的生产安装位置；空串 = 本次运行无权新建/接管 */
   appDir: string
@@ -195,8 +231,10 @@ export function applyAutostart(options: {
   startup?: string
   linkPath?: string
   desired: ShortcutSpec
+  /** helper 单次调用上界（缺省 AUTOSTART_HELPER_BOUND_MS；测试注入小上界验降级） */
+  helperBoundMs?: number
   log?: (event: Record<string, unknown>) => void
-}): AutostartOutcome {
+}): Promise<AutostartOutcome> {
   const startup = options.startup ?? startupDir()
   const link = options.linkPath ?? autostartLinkPath(startup)
   const log = options.log ?? (() => {})
@@ -212,7 +250,7 @@ export function applyAutostart(options: {
 
   let existing: ShortcutSpec | null = null
   try {
-    existing = readShortcut(link)
+    existing = await readShortcut(link, options.helperBoundMs)
   } catch (err) {
     log({ type: 'autostart-read-failed', link, message: (err as Error).message })
   }
@@ -228,7 +266,7 @@ export function applyAutostart(options: {
   let applied = plan.action === 'keep' || plan.action === 'disabled' || plan.action === 'skip'
   try {
     if (plan.action === 'create') {
-      writeShortcut(link, options.desired)
+      await writeShortcut(link, options.desired, options.helperBoundMs)
       applied = true
     } else if (plan.action === 'remove') {
       removeShortcut(link)

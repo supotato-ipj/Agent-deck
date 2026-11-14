@@ -1,7 +1,7 @@
 /**
  * GPU 指标：nvidia-smi 查询（无独立显卡/nvidia-smi 时字段缺位）。
- * 解析为纯函数可离线测试；查询带 3 秒缓存（Python GPU_CACHE_TTL）且异步——
- * 不让 1Hz 采样循环被子进程阻塞。
+ * 解析为纯函数可离线测试；查询带新鲜度窗缓存（工单476 起 30s，ADR-0032 用户拍板；
+ * 自 Python GPU_CACHE_TTL 3s 一路拉长）且异步——不让采样循环被子进程阻塞。
  */
 import { execFile } from 'node:child_process'
 import { round1 } from './history'
@@ -42,14 +42,17 @@ function defaultRunner(args: string[], cb: (err: Error | null, stdout: string) =
   })
 }
 
-/** 带缓存的 GPU 查询：缓存窗内直接读旧值；刷新失败缓存空结果（与 Python 一致——失败也占满 TTL） */
+/** 带缓存的 GPU 查询：缓存窗内直接读旧值；刷新失败缓存空结果（与 Python 一致——失败也占满 TTL）。
+ * 默认窗 30s（工单476，ADR-0032 硬件摘要 30 秒新鲜度）：外部命令一次 50~200ms CPU，
+ * 窗内重复读取零 spawn。窗起点 = 查询发起时刻（完成不后移窗起点）——采样间隔恰为窗长时
+ * 每拍都刷新（若起点被完成时刻后移，生产 30s/30s 装配实测退化成 60s 节奏，B2 轮实证）。 */
 export class GpuQuery {
   private ts = -Infinity
   private data: GpuReadout = {}
   private inFlight = false
 
   constructor(
-    private readonly ttlMs: number = 3000,
+    private readonly ttlMs: number = 30_000,
     private readonly runner: GpuRunner = defaultRunner,
     private readonly now: () => number = () => Date.now(),
   ) {}
@@ -57,9 +60,9 @@ export class GpuQuery {
   read(): GpuReadout {
     if (this.now() - this.ts < this.ttlMs || this.inFlight) return this.data
     this.inFlight = true
+    this.ts = this.now() // 发起即占窗（工单476：完成延迟不后移窗起点）
     this.runner(NVIDIA_SMI_ARGS, (err, stdout) => {
       this.inFlight = false
-      this.ts = this.now()
       this.data = {}
       if (err === null) {
         try {

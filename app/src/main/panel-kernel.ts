@@ -77,7 +77,30 @@ export interface PanelKernelOptions {
 export function createPanelKernel(options: PanelKernelOptions): Context {
   const ctx = new Context()
   ctx.plugin(ClockService)
-  ctx.plugin(SearchService, options.search)
+  // 引擎链路泵（防抖到期/限流退避/离线重试的统一判定点；50ms 量级 = 旧 Tk _tick 先例）。
+  // 工单477 束④：泵只有搜索活动态需要——沿起停（SearchService onPump），待机零空转
+  // 定时器（旧常驻 20Hz 空转出清）；活动期响应性不变。
+  const searchIntervalMs = options.searchIntervalMs ?? DEFAULT_SEARCH_INTERVAL_MS
+  let pumpTimer: NodeJS.Timeout | null = null
+  const searchOptions: SearchServiceOptions = searchIntervalMs > 0
+    ? {
+      ...(options.search ?? {}),
+      onPump: (active) => {
+        if (active && pumpTimer === null) pumpTimer = setInterval(() => ctx.search?.tick(), searchIntervalMs)
+        else if (!active && pumpTimer !== null) {
+          clearInterval(pumpTimer)
+          pumpTimer = null
+        }
+      },
+    }
+    : { ...(options.search ?? {}) }
+  ctx.plugin(SearchService, searchOptions)
+  ctx.on('dispose', () => {
+    if (pumpTimer !== null) {
+      clearInterval(pumpTimer)
+      pumpTimer = null
+    }
+  })
   ctx.plugin(SettingsService, options.settings)
   ctx.plugin(FocusService, options.focus)
   // 桌面组件宿主：缺省 roots=[]——不装任何插件、不建目录（与 createKernel 同款默认）。
@@ -246,12 +269,6 @@ export function createPanelKernel(options: PanelKernelOptions): Context {
     quit: options.quit,
     ...(options.diagnostics?.memory ? { memoryProbe: options.diagnostics.memory } : {}),
   })
-  const searchIntervalMs = options.searchIntervalMs ?? DEFAULT_SEARCH_INTERVAL_MS
-  if (searchIntervalMs > 0) {
-    // 引擎链路泵（防抖到期/限流退避/离线重试的统一判定点；50ms 量级 = 旧 Tk _tick 先例）
-    const timer = setInterval(() => ctx.search?.tick(), searchIntervalMs)
-    ctx.on('dispose', () => clearInterval(timer))
-  }
   const taskbarPollMs = options.taskbarPollMs ?? DEFAULT_TASKBAR_POLL_MS
   if (taskbarPollMs > 0) {
     // 应用组编排轮（工单52）：应用启动/退出 1–2 秒内反映到应用组（窗口枚举 → 纯函数编排 → 变化即推）

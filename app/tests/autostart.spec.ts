@@ -164,16 +164,16 @@ const COM_TIMEOUT = 30_000
 
 describe.skipIf(!isWindows)('自启：applyAutostart 集成（真 COM，tmp Startup 目录）', () => {
   /** 造一个假 Startup 目录（含旧链快捷方式），返回目录与旧链路径 */
-  function startupWithLegacy(): { startup: string; legacy: string } {
+  async function startupWithLegacy(): Promise<{ startup: string; legacy: string }> {
     const startup = tmpDir()
     const legacy = path.join(startup, LEGACY_STARTUP_LINK_NAMES[0])
-    writeShortcut(legacy, { target: 'C:\\venv\\pythonw.exe', args: '"C:\\old\\server_watchdog.pyw"' })
+    await writeShortcut(legacy, { target: 'C:\\venv\\pythonw.exe', args: '"C:\\old\\server_watchdog.pyw"' })
     return { startup, legacy }
   }
 
-  it('旧看门狗链自启项无条件被清除并记账（退役不靠人记得手删）', () => {
-    const { startup, legacy } = startupWithLegacy()
-    const out = applyAutostart({
+  it('旧看门狗链自启项无条件被清除并记账（退役不靠人记得手删）', async () => {
+    const { startup, legacy } = await startupWithLegacy()
+    const out = await applyAutostart({
       enabled: true,
       appDir: 'C:\\repo\\app',
       runningAppDir: 'C:\\repo\\app',
@@ -184,46 +184,46 @@ describe.skipIf(!isWindows)('自启：applyAutostart 集成（真 COM，tmp Star
     expect(fs.existsSync(legacy)).toBe(false)
   }, COM_TIMEOUT)
 
-  it('开发运行（appDir 未声明）照样清旧链，但不新建自启项', () => {
-    const { startup } = startupWithLegacy()
-    const out = applyAutostart({ enabled: true, appDir: '', runningAppDir: 'C:\\wt\\app', startup, desired: DESIRED })
+  it('开发运行（appDir 未声明）照样清旧链，但不新建自启项', async () => {
+    const { startup } = await startupWithLegacy()
+    const out = await applyAutostart({ enabled: true, appDir: '', runningAppDir: 'C:\\wt\\app', startup, desired: DESIRED })
     expect(out.legacyRemoved).toEqual(LEGACY_STARTUP_LINK_NAMES)
     expect(out.action).toBe('skip')
     expect(fs.existsSync(path.join(startup, AUTOSTART_LINK_NAME))).toBe(false)
   }, COM_TIMEOUT)
 
-  it('生产运行且缺失自启项 → 建好并读回一致', () => {
+  it('生产运行且缺失自启项 → 建好并读回一致', async () => {
     const startup = tmpDir()
-    const out = applyAutostart({ enabled: true, appDir: 'C:\\repo\\app', runningAppDir: 'C:\\repo\\app', startup, desired: DESIRED })
+    const out = await applyAutostart({ enabled: true, appDir: 'C:\\repo\\app', runningAppDir: 'C:\\repo\\app', startup, desired: DESIRED })
     expect(out.action).toBe('create')
     expect(out.applied).toBe(true)
-    expect(readShortcut(out.link)).toMatchObject({ target: DESIRED.target, args: DESIRED.args })
+    expect(await readShortcut(out.link)).toMatchObject({ target: DESIRED.target, args: DESIRED.args })
   }, COM_TIMEOUT)
 
-  it('重复执行幂等：第二次不重写', () => {
+  it('重复执行幂等：第二次不重写', async () => {
     const startup = tmpDir()
     const opts = { enabled: true, appDir: 'C:\\repo\\app', runningAppDir: 'C:\\repo\\app', startup, desired: DESIRED }
-    applyAutostart(opts)
-    const second = applyAutostart(opts)
+    await applyAutostart(opts)
+    const second = await applyAutostart(opts)
     expect(second.action).toBe('keep')
     expect(second.reason).toBe('existing-matches')
   }, COM_TIMEOUT)
 
-  it('自启关闭 → 删掉已有自启项', () => {
+  it('自启关闭 → 删掉已有自启项', async () => {
     const startup = tmpDir()
-    applyAutostart({ enabled: true, appDir: 'C:\\repo\\app', runningAppDir: 'C:\\repo\\app', startup, desired: DESIRED })
-    const off = applyAutostart({ enabled: false, appDir: '', runningAppDir: 'C:\\wt\\app', startup, desired: DESIRED })
+    await applyAutostart({ enabled: true, appDir: 'C:\\repo\\app', runningAppDir: 'C:\\repo\\app', startup, desired: DESIRED })
+    const off = await applyAutostart({ enabled: false, appDir: '', runningAppDir: 'C:\\wt\\app', startup, desired: DESIRED })
     expect(off.action).toBe('remove')
     expect(off.applied).toBe(true)
     expect(fs.existsSync(path.join(startup, AUTOSTART_LINK_NAME))).toBe(false)
   }, COM_TIMEOUT)
 
-  it('开发运行不会劫持已存在的生产自启项（活链原地不动）', () => {
+  it('开发运行不会劫持已存在的生产自启项（活链原地不动）', async () => {
     const startup = tmpDir()
     // 目标必须是**确实存在**的路径，否则会被判成死链走另一条分支——用 node.exe 充当生产目标
     const liveTarget = process.execPath
-    writeShortcut(path.join(startup, AUTOSTART_LINK_NAME), { target: liveTarget, args: '"C:\\repo\\app"' })
-    const out = applyAutostart({
+    await writeShortcut(path.join(startup, AUTOSTART_LINK_NAME), { target: liveTarget, args: '"C:\\repo\\app"' })
+    const out = await applyAutostart({
       enabled: true,
       appDir: '',
       runningAppDir: 'C:\\wt\\app',
@@ -231,13 +231,13 @@ describe.skipIf(!isWindows)('自启：applyAutostart 集成（真 COM，tmp Star
       desired: { target: liveTarget, args: '"C:\\wt\\app"' },
     })
     expect(out.action).toBe('keep')
-    expect(readShortcut(out.link)).toMatchObject({ args: '"C:\\repo\\app"' })
+    expect(await readShortcut(out.link)).toMatchObject({ args: '"C:\\repo\\app"' })
   }, COM_TIMEOUT)
 
-  it('开发运行遇到指向别处的死链也不接管（不把机器指向开发路径）', () => {
+  it('开发运行遇到指向别处的死链也不接管（不把机器指向开发路径）', async () => {
     const startup = tmpDir()
-    writeShortcut(path.join(startup, AUTOSTART_LINK_NAME), { target: 'C:\\gone\\electron.exe', args: '"C:\\gone\\app"' })
-    const out = applyAutostart({
+    await writeShortcut(path.join(startup, AUTOSTART_LINK_NAME), { target: 'C:\\gone\\electron.exe', args: '"C:\\gone\\app"' })
+    const out = await applyAutostart({
       enabled: true,
       appDir: '',
       runningAppDir: 'C:\\wt\\app',
@@ -245,26 +245,62 @@ describe.skipIf(!isWindows)('自启：applyAutostart 集成（真 COM，tmp Star
       desired: { target: process.execPath, args: '"C:\\wt\\app"' },
     })
     expect(out.action).toBe('skip')
-    expect(readShortcut(out.link)).toMatchObject({ target: 'C:\\gone\\electron.exe' })
+    expect(await readShortcut(out.link)).toMatchObject({ target: 'C:\\gone\\electron.exe' })
   }, COM_TIMEOUT)
 })
 
 describe.skipIf(!isWindows)('自启：.lnk 读写适配缝（真 COM，tmp 目录）', () => {
-  it('写入后能读回目标与参数（Windows 快捷方式往返）', () => {
+  it('写入后能读回目标与参数（Windows 快捷方式往返）', async () => {
     const link = path.join(tmpDir(), AUTOSTART_LINK_NAME)
-    writeShortcut(link, DESIRED)
+    await writeShortcut(link, DESIRED)
     expect(fs.existsSync(link)).toBe(true)
-    expect(readShortcut(link)).toMatchObject({ target: DESIRED.target, args: DESIRED.args })
+    expect(await readShortcut(link)).toMatchObject({ target: DESIRED.target, args: DESIRED.args })
   }, COM_TIMEOUT)
 
-  it('不存在的链接读作 null（不做异常）', () => {
-    expect(readShortcut(path.join(tmpDir(), 'nope.lnk'))).toBeNull()
+  it('不存在的链接读作 null（不做异常）', async () => {
+    expect(await readShortcut(path.join(tmpDir(), 'nope.lnk'))).toBeNull()
   })
 
-  it('含空格的目标与参数原样保真', () => {
+  it('含空格的目标与参数原样保真', async () => {
     const link = path.join(tmpDir(), 'spaced.lnk')
     const spec: ShortcutSpec = { target: 'C:\\Program Files\\app\\electron.exe', args: '"C:\\Program Files\\app"', workDir: 'C:\\Program Files\\app' }
-    writeShortcut(link, spec)
-    expect(readShortcut(link)).toMatchObject({ target: spec.target, args: spec.args })
+    await writeShortcut(link, spec)
+    expect(await readShortcut(link)).toMatchObject({ target: spec.target, args: spec.args })
   }, COM_TIMEOUT)
 })
+
+// —— 工单481 去同步化（#478 诊断实锤④：自启项维护不得同步阻塞启动链）——
+describe.skipIf(!isWindows)('自启：applyAutostart 异步化（工单481，真 COM，tmp Startup 目录）', () => {
+  it('调用即返回控制权，.lnk 落盘发生在 await 之后（同步阻塞的外部行为反面）', async () => {
+    const startup = tmpDir()
+    const link = path.join(startup, AUTOSTART_LINK_NAME)
+    const pending = applyAutostart({ enabled: true, appDir: 'C:\\repo\\app', runningAppDir: 'C:\\repo\\app', startup, desired: DESIRED })
+    expect(fs.existsSync(link), '同步段 .lnk 已落盘=维护仍在同步阻塞启动链').toBe(false)
+    const out = await pending
+    expect(out.action).toBe('create')
+    expect(out.applied).toBe(true)
+    expect(fs.existsSync(link)).toBe(true)
+  }, COM_TIMEOUT)
+
+  it('helper 超过显式上界 → 终止进程降级放行（applied=false + 超时记账，不悬挂不谎报）', async () => {
+    const startup = tmpDir()
+    const events: Array<Record<string, unknown>> = []
+    const out = await applyAutostart({
+      enabled: true,
+      appDir: 'C:\\repo\\app',
+      runningAppDir: 'C:\\repo\\app',
+      startup,
+      desired: DESIRED,
+      helperBoundMs: 50,
+      log: (e) => events.push(e),
+    })
+    expect(out.applied, 'helper 超时的写不得谎报 applied=true').toBe(false)
+    const readFail = events.find((e) => e.type === 'autostart-read-failed')
+    expect(readFail, '读超时必须记账（read 段同一上界）').toBeTruthy()
+    const writeFail = events.find((e) => e.type === 'autostart-write-failed') as { message?: string } | undefined
+    expect(writeFail, '写超时必须记账').toBeTruthy()
+    expect(String(writeFail?.message)).toContain('超时')
+    expect(fs.existsSync(path.join(startup, AUTOSTART_LINK_NAME))).toBe(false)
+  }, COM_TIMEOUT)
+})
+

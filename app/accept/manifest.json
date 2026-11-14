@@ -112,7 +112,7 @@
             "system-state",
             "panel-alive"
           ],
-          "estSeconds": 18,
+          "estSeconds": 22,
           "areas": [
             "desktop"
           ]
@@ -494,6 +494,63 @@
           "estSeconds": 15,
           "areas": [
             "render"
+          ]
+        },
+        {
+          "seg": "P473",
+          "ticket": 473,
+          "title": "常驻事件日志（工单473，ADR-0032）：零注入生产形态默认开启——启动阶段耗时戳族在档/哨兵 sentinel-armed 武装在证/敏感内容零在档逐值扫描；种满三档到上限验轮转收口（删最老+两级顺移+新档续写）与磁盘总量有界（隔离落点不写用户生产常驻档，真 userData 默认落点由本票零注入手动取证轮留证）",
+          "surfaces": [
+            "system-state",
+            "event-evidence"
+          ],
+          "estSeconds": 15,
+          "areas": [
+            "panel.core",
+            "render"
+          ]
+        },
+        {
+          "seg": "P479B",
+          "ticket": 479,
+          "title": "冻结托盘告警（工单479，ADR-0032）：忙环注入失能档（同 P12 手法）→ renderer-frozen 记账在案 + freeze-alarm 托盘告警恰一条（shown=true 真机气球）+ 无自动杀拉（注入窗零 pullback-*、面板进程在场——自动处置是 ADR-0032 明示暂缓项）",
+          "surfaces": [
+            "event-evidence",
+            "panel-alive"
+          ],
+          "estSeconds": 20,
+          "areas": [
+            "render",
+            "tray",
+            "panel.core"
+          ]
+        },
+        {
+          "seg": "P479",
+          "ticket": 479,
+          "title": "拉回（工单479，ADR-0032）：杀面板→守卫 pullback-scheduled/respawned 退避重拉、新代次接管任务栏（takeover 存证+原生栏已隐视图事实；config 翻转只作用新代次）；连崩 4 次达上限→pullback-exhausted 留证+守卫终局退场+原生任务栏还原+8s 观察窗零越界重拉（不无限重启）；P5/A3/A6 旧契约「守卫随面板退场」随本票退役（改段理由在各段内注释）",
+          "surfaces": [
+            "panel-alive",
+            "event-evidence",
+            "system-state"
+          ],
+          "estSeconds": 45,
+          "areas": [
+            "panel.core",
+            "taskbar"
+          ]
+        },
+        {
+          "seg": "P481",
+          "ticket": 481,
+          "title": "骨架屏启动重排（工单481，ADR-0032）：隔离双面板（单配 config 开条带）断言启动时序——boot-phase 六相位族完整且单调（#473 契约保持）/骨架接线与首显早于自启项维护完成（主线不等 PowerShell，#478④ 运行时证明）/条带窗先于数据面首拍在场（占位条带先行）/首拍前桌面帧全空数据、首拍后有填充帧（占位→原位填充）/workspace-start-gate 存证在档（启动链显式上界治理下走完）",
+          "surfaces": [
+            "event-evidence",
+            "system-state"
+          ],
+          "estSeconds": 20,
+          "areas": [
+            "panel.core"
           ]
         }
       ],
@@ -934,6 +991,20 @@
             "system-state"
           ],
           "estSeconds": 24
+        },
+        {
+          "seg": "P28",
+          "ticket": 482,
+          "title": "explorer 图标点击通道（工单482，#478 定谳修复定向段）：臂①无窗点击→新开「此电脑」（新 CabinetWClass + This PC/此电脑 标题互证 + taskbar-app-result ok/launched——修复前恒 ok:false \"Failed to open path\" 零窗口）；臂②有窗置前（占位窗夺前台→单窗未前台→点击→app-result ok/activated + 前台对账）；轮起笔手钉保障（栏布局缺 explorer 条目时面板拉起前代写、清场摘除）",
+          "surfaces": [
+            "input-injection",
+            "system-state",
+            "event-evidence"
+          ],
+          "areas": [
+            "taskbar"
+          ],
+          "estSeconds": 5
         }
       ],
       "areas": [
@@ -950,8 +1021,8 @@
       "cdpPort": 9224,
       "kind": null,
       "budgetSeconds": 120,
-      "lastMeasuredSeconds": 66,
-      "lastMeasuredAt": "2026-10-26",
+      "lastMeasuredSeconds": 60,
+      "lastMeasuredAt": "2026-11-14",
       "segments": [
         {
           "seg": "A1",
@@ -983,7 +1054,7 @@
             "system-state",
             "event-evidence"
           ],
-          "estSeconds": 8
+          "estSeconds": 10
         },
         {
           "seg": "A4",
@@ -1016,7 +1087,7 @@
             "system-state",
             "event-evidence"
           ],
-          "estSeconds": 7
+          "estSeconds": 9
         },
         {
           "seg": "A7",
@@ -1060,12 +1131,41 @@
         {
           "seg": "C2",
           "ticket": 260,
-          "title": "off 口径（工单260；工单293 全接管期改段；工单308 M1 改写）：off 只关收栏档、托管恒置位——B 相位两次接管生命周期各恰两次状态写入（建立置位 set 一 + 退场复原 restored 一，reason=disabled/force）；运行期零其他写入；退出后读回=开跑前基线",
+          "title": "off 口径（工单260；工单293 全接管期改段；工单308 M1 改写；工单480 计数窗收窄）：off 只关收栏档、托管恒置位——B 相位两次接管生命周期各恰两次状态写入（建立置位 set 一 + 退场复原 restored 一，reason=disabled/force）；运行期零其他写入；退出后读回=开跑前基线。工单480：计数窗排除 D 相位逃生口轮的接管生命周期（[sinceD,sinceDend) 排除窗，D1/D2 自记账）",
           "surfaces": [
             "system-state",
             "event-evidence"
           ],
           "estSeconds": 1,
+          "areas": [
+            "taskbar"
+          ]
+        },
+        {
+          "seg": "D1",
+          "ticket": 480,
+          "title": "逃生口·失能档全链（工单480，ADR-0032）：忙环注入面板冻结 ≈9s（P12 同款）→ renderer-frozen 同拍开逃生口（交还三件套 reason=escape-hatch）→ 原生任务栏自动还原且开始菜单可达（Win 键唤出、前台易主 startmenuexperiencehost/searchhost——本机 autohide 偏好下坐标点击打不中滑出的栏，键位入口是可达性真判据）+ 条带销毁 + 还原账清账（盘上账本离场）→ 忙环结束心跳回归（renderer-unfrozen）→ 重新接管（原生栏再隐、条带回来、接管建立记账、落盘账重建）——接管/还原账目两向核对",
+          "surfaces": [
+            "system-state",
+            "event-evidence",
+            "input-injection"
+          ],
+          "estSeconds": 12,
+          "areas": [
+            "taskbar",
+            "render"
+          ]
+        },
+        {
+          "seg": "D2",
+          "ticket": 480,
+          "title": "逃生口·热键保险丝（工单480）：面板健康时全局热键（ESCAPE_HATCH_HOTKEY，SendInput 同串合成）强制还原原生任务栏（保险丝语义——防自动检测本身失灵：原生栏还原、条带销毁、还原账清账）→ 再按恢复接管（原生栏再隐、条带回来、账重建）——toggle 语义成立",
+          "surfaces": [
+            "input-injection",
+            "system-state",
+            "event-evidence"
+          ],
+          "estSeconds": 4,
           "areas": [
             "taskbar"
           ]

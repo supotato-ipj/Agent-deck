@@ -1660,29 +1660,39 @@ async function runSegments() {
         if (!restoredVis) await sleep(200);
       }
       const carryRestored = await tape.wait('icons-restored', null, { timeoutMs: 2000 });
-      let supervisorDead = false;
-      const superDeadline = Date.now() + 4000;
-      while (Date.now() < superDeadline && !supervisorDead) {
-        supervisorDead = !isAlive(child.pid);
-        if (!supervisorDead) await sleep(200);
-      }
       // 基线感知：用户自身偏好隐藏（基线 visible=false 且 HideIcons=1）时，守卫按设计
       // 全程不动（icon-carry 评审收编：绝不顶掉用户偏好）——此时断言不动作语义：
       // icons-restored 存证在场 + prefHiddenAfter 未被顶掉（视图保持隐藏 = 正确行为）。
       // 基线可见时才断言实际恢复（图标翻回）。
       const userPrefHidden = !iconsVisibleBase && carryRestored && carryRestored.prefHiddenAfter === true;
       restoredVis && carryRestored
-        ? rep.pass(`杀进程自动还原：面板被 taskkill /F 后原生图标恢复（reason=${carryRestored.reason}，守卫还原后退出=${supervisorDead}）`)
+        ? rep.pass(`杀进程自动还原：面板被 taskkill /F 后原生图标恢复（reason=${carryRestored.reason}，视图事实=控制器独立读数）`)
         : userPrefHidden && carryRestored
           ? rep.pass(`杀进程还原（用户偏好隐藏基线）：守卫按设计不动用户偏好——icons-restored 存证在（reason=${carryRestored.reason}），HideIcons 偏好未被顶掉，视图保持隐藏`)
           : rep.fail(`杀进程还原未达成（iconsVisible=${restoredVis}，存证=${JSON.stringify(carryRestored)}）`);
       capture({ left: 0, top: 0, right: si.phys.w, bottom: si.phys.h }, '05-icons-restored');
       rep.note('杀面板后实拍：05-icons-restored.png（原生图标回归、面板已死）');
+      // 工单479 改段说明（旧契约「守卫还原后退出」已退役）：拉回上线后面板异常退出
+      // 不再是守卫的终局——守卫按退避自动重拉（pullback-scheduled/respawned 存证，
+      // 该行为与上限裁决的断言归属工单479 自己的段 P479），本段只断言工单05 的还原
+      // 半边。还原证据落袋后立刻整树清场守卫（/T 连带在逃/在飞的拉回代次）——
+      // 不清场则重拉面板与下方新发射的面板撞单实例锁，把确定性失败留给后续段。
+      spawnSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore' });
+      const guardGone5 = await (async () => {
+        const deadline = Date.now() + 4000;
+        while (Date.now() < deadline) {
+          if (!isAlive(child.pid)) return true;
+          await sleep(200);
+        }
+        return false;
+      })();
+      guardGone5
+        ? rep.note('P5 清场：守卫链已整树终结（拉回代次连带清偿），图标核验=还原后半拍')
+        : rep.note(`P5 清场异常：守卫 pid=${child.pid} 4s 内未退（后续发射将撞单实例锁——如实留痕）`);
 
       // 后续探针继续：重新拉起面板（完整守卫链——此刻图标可见，守卫将再次隐藏）。
       // 时间下限必给：事件文件里留着 P1 的旧 boot，不带时间下限会去盯死 pid 的窗口（本轮实测踩中）。
-      // 面板已被上面的 taskkill /F 定点清掉（外层守卫要活着还原原生图标）——此处只发射不重退：
-      // 走句柄的 relaunch 会整树强杀（/T）把守卫一起带走 → 图标不还原 → 本段判死。
+      // 旧守卫链已在上面整树清场，此处发射的是全新守卫链，无锁冲突。
       // since 门用句柄缺省（发射时点）：原 relaunchT0 就取在发射前那一瞬，与缺省门等价。
       const launched3 = handle.launch({ mode: 'full', cdpPort: CDP_PORT, lagSentinel: true, stdio: 'drain' });
       child = launched3.child;
@@ -6300,6 +6310,405 @@ async function runSegments() {
       } catch {
         rep.fail(`忙环后面板进程不在场：pid=${panelPid}（忙环不该带走面板）`);
       }
+    })();
+
+    // —— P473 常驻事件日志（工单473，ADR-0032）——
+    // 零验收注入的生产形态默认开启：不给 DECK_EVENT_LOG，面板写 DECK_RESIDENT_EVENT_LOG
+    // 隔离落点（只改落点不改默认开启——真 userData 默认落点由本票零注入手动取证轮单独留证，
+    // 电池不往用户生产常驻档里写测试数据）。断言四面：启动阶段耗时戳族在档（①）、
+    // sentinel-armed 生产形态武装在证（②）、轮转收口与总量有界（③）、敏感内容零在档（⑤）。
+    // 段位垫底：本段自建第二面板（--panel-accept 绕锁，P7 探针句柄同款纪律），任务栏已禁、
+    // 托盘断言（P8/P10）已在前面跑过——双面板并存的扰动面到不了任何既有断言。
+    rep.beginSegment('P473');
+    await (async () => {
+      // 投影函数与面板同一份代码（dist 构建产物，npm run accept 先 build）
+      const { projectBootPhases } = require(path.join(APP_ROOT, 'dist', 'main', 'resident-event-log.js'));
+      const isoDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deck473-resident-'));
+      const isoFile = path.join(isoDir, 'events.jsonl');
+      const residentTape = createEventTape(isoFile, { defaultTimeoutMs: 8000 });
+      const readJsonl473 = (file) => {
+        try {
+          return fs.readFileSync(file, 'utf8').split('\n').filter(Boolean)
+            .map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+        } catch { return []; }
+      };
+      const handle473 = createPanelHandle({
+        execPath: process.execPath,
+        appRoot: APP_ROOT,
+        eventLogPath: '', // 零验收注入：不给 DECK_EVENT_LOG（extraEnv 显式置空防继承）
+        // boot 自报 pid 落常驻档（轮转后仍落现役档）——就绪判据改读隔离落点
+        readEvents: () => readJsonl473(isoFile),
+        archivePath: path.join(__dirname, 'evidence', '03-panel-handle-473.log'),
+        log: (m) => rep.note(`[473] ${m}`),
+      });
+      const launch473 = () => handle473.launch({
+        mode: 'accept',
+        stdio: 'drain',
+        extraEnv: { DECK_EVENT_LOG: '', DECK_RESIDENT_EVENT_LOG: isoFile },
+      });
+      const stop473 = async (when) => {
+        const cleared = await handle473.stop();
+        cleared && cleared.gone === false
+          ? rep.exclude(`P473 面板强退失败（${when}）：有界等待内仍存活（pid=${cleared.pidsLeft.join(', ')}）`, '清场后仍有面板进程存活', 'panel-forcekill')
+          : rep.note(`P473 面板已清场（${when}）：${cleared ? cleared.outcome : 'idle'}`);
+      };
+
+      // —— 臂一：零注入启动 → 常驻档在盘、启动阶段族在档、哨兵武装在证、敏感内容零在档 ——
+      const ra473 = launch473();
+      const win473 = await handle473.waitWindow({ title: PANEL_TITLE, cls: 'Chrome_WidgetWin_1', timeoutMs: 25000 });
+      win473
+        ? rep.pass(`常驻形态面板就绪：零验收注入拉起（pid=${handle473.alive() ? '存活' : '不在'}），常驻档落点已隔离`)
+        : rep.fail('常驻形态面板未就绪：25s 内未见到就绪窗（常驻事件日志接线疑断——先查 [473] stderr 档）');
+      const EXPECTED_PHASES = ['config-loaded', 'autostart-applied', 'kernel-started', 'panel-data-ready', 'window-wired', 'panel-visible'];
+      let phases = [];
+      const phaseDeadline = Date.now() + 20000;
+      while (Date.now() < phaseDeadline) {
+        phases = projectBootPhases(residentTape.all());
+        if (EXPECTED_PHASES.every((p) => phases.some((s) => s.phase === p))) break;
+        await sleep(250);
+      }
+      const missing = EXPECTED_PHASES.filter((p) => !phases.some((s) => s.phase === p));
+      missing.length === 0
+        ? rep.pass(`启动阶段耗时戳族在档（票面①）：${phases.map((s) => `${s.phase}=${s.elapsedMs}ms`).join(' ')}`)
+        : rep.fail(`启动阶段族缺相位（票面①）：${missing.join(',')}（got=${JSON.stringify(phases)}）`);
+      phases.length > 0 && phases.every((s, i) => i === 0 || s.elapsedMs >= phases[i - 1].elapsedMs)
+        ? rep.pass('启动阶段耗时戳单调非递减（同一启动锚点起算，族内可读出「卡在哪一秒」）')
+        : rep.fail(`启动阶段耗时戳非单调：${JSON.stringify(phases)}`);
+      const armed473 = await residentTape.wait('sentinel-armed', undefined, { since: ra473.launchedAt, timeoutMs: 15000 });
+      armed473
+        ? rep.pass(`渲染层哨兵生产形态武装在证（票面②）：sentinel-armed pid=${armed473.pid}（零注入即采样落盘，生产冻结不再盲区）`)
+        : rep.fail('哨兵生产形态未武装（票面②）：常驻档 15s 内无 sentinel-armed');
+      // 敏感内容零在档（票面⑤）：高频数据帧族不入 + 抹除名单字段必须已是 '[redacted]' +
+      // 任意字符串值不得残留路径形态（盘符/UNC/file URL）。全档逐行逐值走。
+      const rows473 = residentTape.all();
+      const REDACT_KEYS473 = new Set(['name', 'names', 'title', 'tooltip', 'query', 'path', 'paths', 'file', 'files', 'cwd', 'dir', 'link', 'url', 'href']);
+      const PATHISH_RE = /[A-Za-z]:[\\/]|\\\\|file:\/\//i;
+      const leaks473 = [];
+      const walk473 = (v, where) => {
+        if (typeof v === 'string') {
+          if (PATHISH_RE.test(v)) leaks473.push(`${where}: 路径形态字符串 ${JSON.stringify(v.slice(0, 80))}`);
+        } else if (Array.isArray(v)) {
+          v.forEach((x, i) => walk473(x, `${where}[${i}]`));
+        } else if (v && typeof v === 'object') {
+          for (const [k, x] of Object.entries(v)) {
+            if (REDACT_KEYS473.has(k) && x !== '[redacted]') leaks473.push(`${where}.${k}=${JSON.stringify(x)} 未抹除`);
+            else walk473(x, `${where}.${k}`);
+          }
+        }
+      };
+      for (const r of rows473) {
+        if (r.type === 'taskbar-right-status' || r.type === 'desktop-rendered') leaks473.push(`高频数据帧 ${r.type} 在档（应整体滤除）`);
+        walk473(r, r.type || '?');
+      }
+      leaks473.length === 0
+        ? rep.pass(`敏感内容零在档（票面⑤）：常驻档 ${rows473.length} 行逐值扫描，无路径形态/无未抹除敏感字段/无高频数据帧`)
+        : rep.fail(`敏感内容在档（票面⑤）：${JSON.stringify(leaks473.slice(0, 6))}`);
+      await stop473('臂一末');
+
+      // —— 臂二：轮转收口（票面③）——种满三档到上限，下次落盘即全链轮转（删最老+两级顺移），
+      // 新代次数据落新档。盘面裁决：读文件内容与档数，不读面板内部状态。
+      // 三档种子各用不同填充字节——内容全同时「最老档已删」判据失去区分力
+      //（r1 实证：顺移断言全绿但删除判据把顺移后的 2 号误判成残留）。
+      const CAP473 = 5 * 1024 * 1024;
+      const seedAt473 = (f, byte) => fs.writeFileSync(f, Buffer.alloc(CAP473, byte));
+      const f1 = path.join(isoDir, 'events.1.jsonl');
+      const f2 = path.join(isoDir, 'events.2.jsonl');
+      seedAt473(isoFile, 0x78); seedAt473(f1, 0x79); seedAt473(f2, 0x7a);
+      const old1 = fs.readFileSync(f1);
+      const old2 = fs.readFileSync(f2);
+      const oldActive = fs.readFileSync(isoFile);
+      launch473();
+      const win473b = await handle473.waitWindow({ title: PANEL_TITLE, cls: 'Chrome_WidgetWin_1', timeoutMs: 25000 });
+      let freshRows = [];
+      const rotDeadline = Date.now() + 25000;
+      while (Date.now() < rotDeadline) {
+        freshRows = readJsonl473(isoFile);
+        if (freshRows.length > 0 && fs.existsSync(isoFile) && fs.statSync(isoFile).size < CAP473) break;
+        await sleep(250);
+      }
+      freshRows.length > 0 && win473b
+        ? rep.pass(`轮转后新档续写：现役档重开即收新代次数据（首行 ${freshRows[0].type}，共 ${freshRows.length} 行）`)
+        : rep.fail(`轮转后现役档无新数据（win=${!!win473b} rows=${freshRows.length}）——轮转疑未触发或写入通道断`);
+      fs.readFileSync(f1).equals(oldActive)
+        ? rep.pass('轮转顺移正确：旧现役档让位为 1 号（字节一致）')
+        : rep.fail('轮转顺移异常：1 号档不是旧现役内容');
+      fs.readFileSync(f2).equals(old1)
+        ? rep.pass('轮转顺移正确：旧 1 号进 2 号（字节一致）')
+        : rep.fail('轮转顺移异常：2 号档不是旧 1 号内容');
+      const chainNames = fs.readdirSync(isoDir).filter((n) => n.startsWith('events'));
+      const oldestGone = !fs.readdirSync(isoDir).some((n) => { const c = fs.readFileSync(path.join(isoDir, n)); return c.equals(old2); });
+      chainNames.length === 3 && oldestGone
+        ? rep.pass(`轮转收口（票面③）：链恒 3 档 [${chainNames.join(', ')}]，最老档已删——磁盘总量有界`)
+        : rep.fail(`轮转收口异常（票面③）：档=${chainNames.join(', ')} 最老档残留=${!oldestGone}`);
+      const totalBytes = chainNames.reduce((a, n) => a + fs.statSync(path.join(isoDir, n)).size, 0);
+      totalBytes <= CAP473 * 3 + 65536
+        ? rep.pass(`磁盘总量有界（票面③）：链合计 ${(totalBytes / 1048576).toFixed(2)}MB ≤ 5MB×3+64KB 松弛`)
+        : rep.fail(`磁盘总量越界：${totalBytes} 字节`);
+      await stop473('臂二末');
+      try { fs.rmSync(isoDir, { recursive: true, force: true }); } catch { /* 尽力 */ }
+      rep.note('P473 隔离落点已清（临时目录）');
+    })();
+
+
+    // —— P481 骨架屏启动重排（工单481，ADR-0032）——
+    // 隔离双面板（P473 同款纪律：--panel-accept 绕锁、DECK_EVENT_LOG 零注入、
+    // DECK_RESIDENT_EVENT_LOG 隔离落点；另配单份 config 使 taskbar.enabled=true——
+    // 主电池全程禁条带（49/50 专电池），本段要断言「条带早现」必须给双面板开条带）。
+    // 断言五面（票面验收①③④ + 增段三条件：真机启动时序行为单测无法覆盖，纯编排
+    // 已在 tests/boot-sequence.spec.ts；一段绑定一工单481）：
+    // ① #473 相位族完整且单调非递减——骨架重排不丢相位（boot-phase 六相位全戳）；
+    // ② 骨架次序：window-wired 与 panel-visible 都早于 autostart-applied——主线不再等
+    //    自启项 PowerShell（#478④ 的运行时证明；热态 helper ≥1s 量级 vs 页面装载
+    //    ~0.3s，4 倍以上量级差为稳定序）；
+    // ③ 条带早现：DECK-TASKBAR 条带窗先于 panel-data-ready 在场（占位条带先于数据）；
+    // ④ 占位→填充：panel-data-ready 之前的 desktop-rendered 帧全部空数据（apps=0 且
+    //    docs=0——数据面首拍未到渲染层只能拿到空投影），之后出现填充帧（原位填充）。
+    //    观测通道=r1 实证修正：desktop-rendered 属高频数据帧族，常驻日志投影整体滤除
+    //    （resident-event-log DROP_EVENT_TYPES）——本段双面板走 DECK_EVENT_LOG 事件档
+    //    读事件磁带（boot-phase/workspace-start-gate/desktop-rendered 全在档）；
+    // ⑤ 工作区启动链路存证在档（workspace-start-gate）——启动链在显式上界治理下照常
+    //    走完（#478③ 收口的运行时面）。
+    rep.beginSegment('P481');
+    await (async () => {
+      const { projectBootPhases } = require(path.join(APP_ROOT, 'dist', 'main', 'resident-event-log.js'));
+      const isoDir481 = fs.mkdtempSync(path.join(os.tmpdir(), 'deck481-skeleton-'));
+      const evtFile481 = path.join(isoDir481, 'events-battery.jsonl');
+      // 双面板单配 config：抄当前隔离落点原文，仅开 taskbar（清场删除，零接触生产配置）
+      const cfg481 = path.join(isoDir481, 'config.json');
+      const baseRaw481 = fs.existsSync(CONFIG_FILE) ? fs.readFileSync(CONFIG_FILE, 'utf8') : null;
+      let baseJson481 = {};
+      try { baseJson481 = baseRaw481 ? JSON.parse(baseRaw481) : {}; } catch { baseJson481 = {}; }
+      fs.writeFileSync(cfg481, JSON.stringify({ ...baseJson481, taskbar: { ...(baseJson481.taskbar ?? {}), enabled: true } }, null, 2) + '\n', 'utf8');
+      const evtTape481 = createEventTape(evtFile481, { defaultTimeoutMs: 8000 });
+      const readJsonl481 = (file) => {
+        try {
+          return fs.readFileSync(file, 'utf8').split('\n').filter(Boolean)
+            .map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+        } catch { return []; }
+      };
+      const handle481 = createPanelHandle({
+        execPath: process.execPath,
+        appRoot: APP_ROOT,
+        eventLogPath: '',
+        readEvents: () => readJsonl481(evtFile481),
+        archivePath: path.join(__dirname, 'evidence', '03-panel-handle-481.log'),
+        log: (m) => rep.note(`[481] ${m}`),
+      });
+      const stop481 = async (when) => {
+        const cleared = await handle481.stop();
+        cleared && cleared.gone === false
+          ? rep.exclude(`P481 面板强退失败（${when}）：有界等待内仍存活（pid=${cleared.pidsLeft.join(', ')}）`, '清场后仍有面板进程存活', 'panel-forcekill')
+          : rep.note(`P481 面板已清场（${when}）：${cleared ? cleared.outcome : 'idle'}`);
+      };
+      const ra481 = handle481.launch({
+        mode: 'accept',
+        stdio: 'drain',
+        extraEnv: { DECK_EVENT_LOG: evtFile481, DECK_CONFIG_FILE: cfg481 },
+      });
+      // 条带早现（③）：条带窗在骨架主线即建（先于数据面首拍）——先等条带再读相位
+      const strip481 = await handle481.waitWindow({ title: 'DECK-TASKBAR', cls: 'Chrome_WidgetWin_1', timeoutMs: 15000 });
+      strip481
+        ? rep.pass('任务栏条带早现在场：骨架主线建窗先于数据面首拍（占位条带先行）')
+        : rep.fail('任务栏条带窗未在场：15s 内未见到 DECK-TASKBAR（双面板 config 条带开关疑断）');
+      const panel481 = await handle481.waitWindow({ title: PANEL_TITLE, cls: 'Chrome_WidgetWin_1', timeoutMs: 25000 });
+      panel481
+        ? rep.pass(`骨架面板就绪：--panel-accept 双面板拉起（pid=${handle481.alive() ? '存活' : '不在'}），隔离落点已配`)
+        : rep.fail('骨架面板未就绪：25s 内未见到就绪窗（骨架重排疑断——先查 [481] stderr 档）');
+      // boot 锚点（boot 事件自报 t）与相位族投影
+      let bootT481 = 0;
+      const bootDeadline = Date.now() + 15000;
+      while (Date.now() < bootDeadline) {
+        const bootEvt = readJsonl481(evtFile481).find((e) => e.type === 'boot');
+        if (bootEvt) { bootT481 = bootEvt.t; break; }
+        await sleep(200);
+      }
+      bootT481 || rep.fail('常驻档无 boot 锚点事件：15s 内 boot 自报缺席（事件日志接线疑断）');
+      const EXPECTED481 = ['config-loaded', 'autostart-applied', 'kernel-started', 'panel-data-ready', 'window-wired', 'panel-visible'];
+      let phases481 = [];
+      const phaseDeadline481 = Date.now() + 25000;
+      while (Date.now() < phaseDeadline481) {
+        phases481 = projectBootPhases(evtTape481.all());
+        if (EXPECTED481.every((p) => phases481.some((s) => s.phase === p))) break;
+        await sleep(250);
+      }
+      const missing481 = EXPECTED481.filter((p) => !phases481.some((s) => s.phase === p));
+      missing481.length === 0
+        ? rep.pass(`启动阶段耗时戳族在档（票面①，骨架重排不丢相位）：${phases481.map((s) => `${s.phase}=${s.elapsedMs}ms`).join(' ')}`)
+        : rep.fail(`启动阶段族缺相位（票面①）：${missing481.join(',')}（got=${JSON.stringify(phases481)}）`);
+      phases481.length > 0 && phases481.every((s, i) => i === 0 || s.elapsedMs >= phases481[i - 1].elapsedMs)
+        ? rep.pass('启动阶段耗时戳单调非递减（票面①）：异步后补的相位按完成时刻落档仍可读')
+        : rep.fail(`启动阶段耗时戳非单调：${JSON.stringify(phases481)}`);
+      const phaseOf481 = (name) => phases481.find((s) => s.phase === name) || null;
+      const wired481 = phaseOf481('window-wired');
+      const visible481 = phaseOf481('panel-visible');
+      const autostart481 = phaseOf481('autostart-applied');
+      // 骨架次序（②）：接线/首显都早于自启项维护完成——主线不再等 PowerShell（#478④）
+      wired481 && autostart481 && wired481.elapsedMs < autostart481.elapsedMs
+        ? rep.pass(`骨架接线早于自启项维护完成（票面②）：window-wired=${wired481.elapsedMs}ms < autostart-applied=${autostart481.elapsedMs}ms`)
+        : rep.fail(`骨架次序异常（票面②）：window-wired=${wired481 ? wired481.elapsedMs : '缺'} vs autostart-applied=${autostart481 ? autostart481.elapsedMs : '缺'}——主线疑仍在等自启项维护`);
+      visible481 && autostart481 && visible481.elapsedMs < autostart481.elapsedMs
+        ? rep.pass(`骨架首显早于自启项维护完成（票面②）：panel-visible=${visible481.elapsedMs}ms < autostart-applied=${autostart481.elapsedMs}ms`)
+        : rep.fail(`首显次序异常（票面②）：panel-visible=${visible481 ? visible481.elapsedMs : '缺'} vs autostart-applied=${autostart481 ? autostart481.elapsedMs : '缺'}`);
+      // 条带早于数据面首拍（③，时序面）：条带窗在档时刻不得晚于 panel-data-ready 落戳
+      const dataReady481 = phaseOf481('panel-data-ready');
+      strip481 && dataReady481
+        ? rep.pass(`条带先于数据面首拍（票面③）：DECK-TASKBAR 在 panel-data-ready=${dataReady481.elapsedMs}ms 前已建窗`)
+        : strip481 && !dataReady481
+          ? rep.pass('条带先于数据面首拍（票面③）：条带在场而数据面尚未首拍（占位先行直证）')
+          : rep.fail('条带早现断言缺输入（票面③）：条带窗或相位数据缺席');
+      // 占位→填充（④）：首拍之前的桌面帧全空数据，首拍之后出现填充帧（有界等待防读太早）
+      const dataAt481 = dataReady481 ? bootT481 + dataReady481.elapsedMs : Number.MAX_SAFE_INTEGER;
+      let frames481 = [];
+      const fillDeadline481 = Date.now() + 10000;
+      for (;;) {
+        frames481 = evtTape481.all(undefined, (e) => e.type === 'desktop-rendered', { since: ra481.launchedAt });
+        if (frames481.some((f) => f.t >= dataAt481) || Date.now() >= fillDeadline481) break;
+        await sleep(250);
+      }
+      const preFrames = frames481.filter((f) => f.t < dataAt481);
+      const postFrames = frames481.filter((f) => f.t >= dataAt481);
+      preFrames.length > 0 && preFrames.every((f) => (f.apps ?? 0) === 0 && (f.docs ?? 0) === 0)
+        ? rep.pass(`占位态帧全空数据（票面④）：首拍前 ${preFrames.length} 帧 desktop-rendered 均 apps=0/docs=0（桌面组件轻量占位）`)
+        : preFrames.length === 0
+          ? rep.note('占位帧缺席（首拍先于首个桌面帧——页面装载快于数据面，本帧无占位面可证）')
+          : rep.fail(`占位态帧混入数据（票面④）：${JSON.stringify(preFrames.filter((f) => (f.apps ?? 0) !== 0 || (f.docs ?? 0) !== 0).slice(0, 3))}`);
+      postFrames.length > 0
+        ? rep.pass(`数据到达原位填充（票面④）：首拍后 ${postFrames.length} 帧 desktop-rendered 在档（桥接推送填充链路走通）`)
+        : rep.fail('填充帧缺席（票面④）：panel-data-ready 后 10s 内无 desktop-rendered——首拍推送或渲染疑断');
+      // 工作区启动链路存证（⑤）：显式上界治理下启动照常走完
+      const wsGate481 = await evtTape481.wait('workspace-start-gate', undefined, { since: ra481.launchedAt, timeoutMs: 15000 });
+      wsGate481
+        ? rep.pass(`工作区启动链路存证在档（票面⑤）：workspace-start-gate after=${wsGate481.after} paired=${wsGate481.paired}`)
+        : rep.fail('工作区启动链路存证缺席（票面⑤）：workspace-start-gate 15s 内未落档——后补链疑断');
+      await stop481('段末');
+      try { fs.rmSync(isoDir481, { recursive: true, force: true }); } catch { /* 尽力 */ }
+      rep.note('P481 隔离落点与单配 config 已清（临时目录）');
+    })();
+
+    // —— P479B 冻结托盘告警（工单479，ADR-0032）：哨兵判出冻结失能 → 记账 + 托盘告警
+    // 恰好一次，**无自动杀拉**（自动处置是 ADR-0032 明示暂缓项）。注入手法同 P12
+    // （CDP 忙环钉死渲染层主线程 12s——静默≈5s、失能≈7s 两档依次发射）；本段断言在
+    // P12 之上加的是告警半边：freeze-alarm 存证恰一条（带 shown=true——真机托盘在场）
+    // + 注入窗零 pullback-*（面板没退，守卫没被惊动）。段位垫底（P473 之后、P479 之前）：
+    // 用的是 P9B 代次现役面板（CDP 9223 在场），告警闩为 episode 级——P12 的冻结已闭合，
+    // 本段注入是新一轮冻结，告警义务重新成立。
+    rep.beginSegment('P479B');
+    await (async () => {
+      if (!panelPid || !isAlive(panelPid)) throw new Error('P479B 前置不成立：现役面板不在场');
+      const injectT479B = Date.now();
+      let injected479B;
+      try {
+        await cdpEval('(() => { const t0 = performance.now(); while (performance.now() - t0 < 12000); return "frozen"; })()', 20000);
+        injected479B = '忙环 12s 注入完成';
+      } catch (e) { injected479B = `忙环注入异常: ${e.message}`; }
+      rep.note(`渲染层失能注入（CDP 忙环，同 P12 手法）：${injected479B}`);
+      const after479B = tape.all();
+      // 记账：注入窗内 renderer-frozen 恰一条（哨兵发射判据 #91 不变——记账半边）
+      const frozen479B = after479B.filter((e) => e.type === 'renderer-frozen' && e.t >= injectT479B);
+      frozen479B.length === 1
+        ? rep.pass(`冻结记账在案：renderer-frozen quietMs=${frozen479B[0].quietMs}（常驻事件账同源落盘）`)
+        : rep.fail(`冻结记账异常：${JSON.stringify(frozen479B.map((e) => ({ t: e.t, quietMs: e.quietMs })))}（期望恰一条）`);
+      // 托盘告警恰好一次：freeze-alarm 存证恰一条且 shown=true（真机托盘在场，气球真弹出）
+      const alarms479B = after479B.filter((e) => e.type === 'freeze-alarm' && e.t >= injectT479B);
+      alarms479B.length === 1 && alarms479B[0].shown === true
+        ? rep.pass(`托盘告警恰好一次（票面②）：freeze-alarm channel=${alarms479B[0].channel} shown=${alarms479B[0].shown}——episode 闩在案，不刷屏`)
+        : rep.fail(`托盘告警次数异常：${JSON.stringify(alarms479B.map((e) => ({ t: e.t, shown: e.shown })))}（期望恰一条 shown=true）`);
+      // 无自动杀拉（票面③边界）：忙环结束后面板进程仍在场，注入窗零 pullback-*（守卫没被惊动）
+      const afterUnfrozen479B = await tape.wait('renderer-unfrozen', undefined, { since: injectT479B, timeoutMs: 10000 });
+      const alive479B = (() => { try { process.kill(panelPid, 0); return true; } catch { return false; } })();
+      const pullbackNoise479B = after479B.filter((e) => e.type === 'pullback-scheduled' || e.type === 'pullback-exhausted').filter((e) => e.t >= injectT479B);
+      alive479B && pullbackNoise479B.length === 0
+        ? rep.pass(`无自动杀拉（ADR-0032 暂缓项本票不做）：冻结后面板进程在场（pid=${panelPid}），注入窗零 pullback-*（闭合 frozenMs=${afterUnfrozen479B ? afterUnfrozen479B.frozenMs : 'n/a'}）`)
+        : rep.fail(`冻结处置越界疑云：面板存活=${alive479B} pullback噪声=${JSON.stringify(pullbackNoise479B.map((e) => e.type))}`);
+    })();
+
+    // —— P479 拉回（工单479，ADR-0032 韧性基线）：杀面板 → 守卫自动重拉（退避有界）。
+    // 票面演示链一次跑全：杀面板子进程 → 守卫自动重拉 + 面板恢复接管任务栏（AC①）；
+    // 连续异常退出达上限 → 停止重拉、留 pullback-exhausted 存证、守卫还原后随面板退场
+    // （AC②，不无限重启）。段位垫底中的垫底（真末段）：本段连杀面板 4 次把连崩账打到
+    // 上限、守卫终局退出——放中间会搅乱任何依赖「面板活着」的段。任务栏接管演示的前置：
+    // 主电池全程 taskbar.enabled=false（依赖原生任务栏在场），本段杀前把 config 翻真——
+    // 重拉代次 boot 时读 config 即带任务栏启动；翻转只作用本段起的新代次，轮末 config
+    // 还原兜底（configBackupMain）收口。
+    rep.beginSegment('P479');
+    await (async () => {
+      if (!child || !panelPid || !isAlive(child.pid)) throw new Error('P479 前置不成立：守卫链不在场');
+      let cfg479 = {};
+      try { cfg479 = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8')); } catch { cfg479 = {}; }
+      cfg479.taskbar = { ...(cfg479.taskbar ?? {}), enabled: true };
+      fs.writeFileSync(CONFIG_FILE, JSON.stringify(cfg479, null, 2) + '\n', 'utf8');
+      rep.note('P479 config 已临时置 taskbar.enabled=true（重拉代次带任务栏启动）');
+      const waitGone479 = async (pid, timeoutMs) => {
+        const deadline = Date.now() + timeoutMs;
+        while (Date.now() < deadline) { if (!isAlive(pid)) return true; await sleep(200); }
+        return false;
+      };
+      const findPanelPid479 = (excludePid) => {
+        for (const h of w32.topLevelWindows()) {
+          let title = '';
+          let pid = 0;
+          try { title = windowTitle(h); pid = w32.threadIdOf(h).pid; } catch { continue; }
+          if (title === 'AGENT DECK' && pid && pid !== excludePid) return pid;
+        }
+        return null;
+      };
+      // —— 第 1 崩：重拉 + 接管任务栏（票面 AC① 演示链全条）——
+      const killT1 = Date.now();
+      spawnSync('taskkill', ['/PID', String(panelPid), '/F'], { stdio: 'ignore' });
+      const sched1 = await tape.wait('pullback-scheduled', (e) => e.attempt === 1, { since: killT1, timeoutMs: 8000 });
+      sched1 && sched1.delayMs > 0
+        ? rep.pass(`拉回调度（第 1 崩）：pullback-scheduled attempt=1 delayMs=${sched1.delayMs} exitCode=${sched1.exitCode}（退避表查表在案）`)
+        : rep.fail(`拉回调度缺席（第 1 崩）：${JSON.stringify(sched1 || null)}`);
+      const respawned1 = await tape.wait('pullback-respawned', (e) => e.attempt === 1, { since: killT1, timeoutMs: 15000 });
+      let newPid1 = null;
+      const winDeadline1 = Date.now() + 20000;
+      while (Date.now() < winDeadline1 && !newPid1) { newPid1 = findPanelPid479(panelPid); if (!newPid1) await sleep(300); }
+      const takeEv479 = await tape.wait('taskbar-autohide-takeover', undefined, { since: killT1, timeoutMs: 25000 });
+      let nativeHidden479 = false;
+      const hiddenDeadline479 = Date.now() + 10000;
+      while (Date.now() < hiddenDeadline479 && !nativeHidden479) { nativeHidden479 = !w32.nativeTaskbarVisible(); if (!nativeHidden479) await sleep(300); }
+      respawned1 && newPid1 && takeEv479 && nativeHidden479
+        ? rep.pass(`杀面板自动重拉 + 接管任务栏（票面 AC①）：守卫 respawned attempt=1 → 新代次窗在场（pid=${newPid1}）→ taskbar-autohide-takeover 在案 + 原生任务栏已隐（视图事实）`)
+        : rep.fail(`拉回演示链断（第 1 崩）：respawned=${!!respawned1} 新窗=${newPid1} 接管存证=${!!takeEv479} 原生任务栏已隐=${nativeHidden479}`);
+      if (newPid1) panelPid = newPid1;
+      // —— 第 2/3 崩：退避升级重拉（链未断——attempt 2/3 依次在案）——
+      for (const nth of [2, 3]) {
+        const killTn = Date.now();
+        spawnSync('taskkill', ['/PID', String(panelPid), '/F'], { stdio: 'ignore' });
+        const schedN = await tape.wait('pullback-scheduled', (e) => e.attempt === nth, { since: killTn, timeoutMs: 8000 });
+        const respawnedN = await tape.wait('pullback-respawned', (e) => e.attempt === nth, { since: killTn, timeoutMs: 20000 });
+        let newPidN = null;
+        const winDeadlineN = Date.now() + 20000;
+        while (Date.now() < winDeadlineN && !newPidN) { newPidN = findPanelPid479(panelPid); if (!newPidN) await sleep(300); }
+        schedN && respawnedN && newPidN
+          ? rep.pass(`连崩重拉继续（第 ${nth} 崩）：attempt=${nth} delayMs=${schedN.delayMs}（退避升级），新代次窗在场（pid=${newPidN}）`)
+          : rep.fail(`连崩重拉断（第 ${nth} 崩）：scheduled=${!!schedN} respawned=${!!respawnedN} 新窗=${newPidN}`);
+        if (newPidN) panelPid = newPidN;
+      }
+      // —— 第 4 崩：达上限放弃（票面 AC②）——pullback-exhausted 留证 + 守卫终局退场 +
+      // 不再有新面板（不无限重启）+ 原生任务栏随 give-up 还原径回到系统手里（逃生口半边）。
+      const killT4 = Date.now();
+      spawnSync('taskkill', ['/PID', String(panelPid), '/F'], { stdio: 'ignore' });
+      const exhausted = await tape.wait('pullback-exhausted', undefined, { since: killT4, timeoutMs: 8000 });
+      exhausted && exhausted.attempt === 4
+        ? rep.pass(`达上限停止重拉（票面 AC②）：pullback-exhausted attempt=${exhausted.attempt} maxRespawns=${exhausted.maxRespawns}（记账在案，不无限重启）`)
+        : rep.fail(`上限放弃存证缺席：${JSON.stringify(exhausted || null)}`);
+      const guardGone479 = await waitGone479(child.pid, 15000);
+      const nativeBack479 = await (async () => {
+        const deadline = Date.now() + 8000;
+        while (Date.now() < deadline) { if (w32.nativeTaskbarVisible()) return true; await sleep(300); }
+        return false;
+      })();
+      guardGone479
+        ? rep.pass(`守卫终局退场：give-up 后守卫随退出（pid=${child.pid} 已死），原生任务栏还原=${nativeBack479}（give-up 还原径）`)
+        : rep.fail(`守卫未随上限放弃退场：pid=${child.pid} 15s 仍存活（僵尸守卫——还原守护永不触发）`);
+      let noMore479 = true;
+      const quietDeadline479 = Date.now() + 8000;
+      while (Date.now() < quietDeadline479 && noMore479) { noMore479 = findPanelPid479(null) === null; if (noMore479) await sleep(400); }
+      noMore479
+        ? rep.pass('放弃后零重拉：8s 观察窗内无新面板窗口（重拉次数有界，终局有界）')
+        : rep.fail('上限放弃后仍有新面板窗口出现（拉回越界——不该发生的第 5 拉）');
+      rep.note('P479 段末面板与守卫均已退场（上限放弃终局）；config 翻转由轮末 configBackupMain 还原兜底');
     })();
   } catch (e) {
     rep.fail(`电池中断: ${e && e.stack || e}`);

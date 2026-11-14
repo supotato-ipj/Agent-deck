@@ -1,22 +1,39 @@
 // 时钟卡（工单10 内置桌面组件 1/5）：时间 + 日期，纯自快照时钟推导，无内核调用。
 // 观感与改造前一致：卡片几何与配色仍由面板样式表（.card / #clock-card）承担，
 // 本插件只负责内容——内置组件与面板同源，共用面板的设计系统是既有纪律。
+// 工单477 束③（时钟去秒，用户拍板）：呈现只显时分，且同值不重写 DOM——
+// 1Hz 快照推送期间时钟卡不再产生任何文本变化（无秒级重绘），分钟沿才落笔一次。
+// 注意：本卡无运行时 import——插件资产经 deck-plugin://<id>/ 寻址，相对 import 会越出
+// 插件资产根 404（真机首轮实证）；条带侧同一实现住在 renderer/clock-text.ts（formatClock），
+// 此处 6 行内联副本以它为准绳。
 import type { PluginApi, PluginHost } from '../../plugins.js'
 
 const WEEKDAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
+
+/** epochMs → 「HH:MM」（与 clock-text.hhmmOf 同实现；插件边界内联副本，勿在此加逻辑） */
+function hhmmOf(epochMs: number): string {
+  const d = new Date(epochMs)
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
 
 let rendered = 0
 let clicks = 0
 let time: HTMLElement
 let date: HTMLElement
 
+/** 同值不落笔（去重绘的核心一守）：呈现文本没变就不碰 DOM */
+function writeIfChanged(el: HTMLElement, text: string): void {
+  if (el.textContent === text) return
+  el.textContent = text
+}
+
 function render(host: PluginHost): void {
   const clock = host.view.clock
   if (!clock || !time) return
-  const pad = host.util.pad
   const d = new Date(clock.epochMs)
-  time.textContent = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
-  date.textContent = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${WEEKDAYS[d.getDay()]}`
+  writeIfChanged(time, hhmmOf(clock.epochMs))
+  const dateText = `${d.getFullYear()}-${host.util.pad(d.getMonth() + 1)}-${host.util.pad(d.getDate())} ${WEEKDAYS[d.getDay()]}`
+  writeIfChanged(date, dateText)
   rendered += 1
   if (rendered <= 3) host.notify('clock-rendered', { n: rendered, epochMs: clock.epochMs })
 }
@@ -26,7 +43,7 @@ export default {
     const card = document.createElement('div')
     card.className = 'card'
     card.id = 'clock-card'
-    card.innerHTML = '<div id="clock-time">--:--:--</div><div id="clock-date">---- -- --</div>'
+    card.innerHTML = '<div id="clock-time">--:--</div><div id="clock-date">---- -- --</div>'
     // 点击存证沿用改造前的事件名与载荷（电池按它证面板仍可交互）
     card.addEventListener('click', () => {
       clicks += 1

@@ -5,6 +5,7 @@
  */
 import path from 'node:path'
 import type { SessionInfo } from '../../shared/contract'
+import type { SqlitePool } from './sqlite'
 
 export type { SessionInfo }
 
@@ -13,7 +14,7 @@ export const ACTIVE_WINDOW = 600.0
 
 /** roots 为 {工具名: 数据根路径}，now 为墙钟秒——与 Python collect_sessions 同一接缝 */
 export type SessionRoots = Record<string, string>
-export type Scanner = (root: string, now: number) => SessionInfo[]
+export type Scanner = (root: string, now: number, pool?: SqlitePool) => SessionInfo[]
 
 /** Python _dir_name：空值给空串，其余取路径末段 */
 export function dirName(pathStr: unknown): string {
