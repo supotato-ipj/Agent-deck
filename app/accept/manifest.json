@@ -518,7 +518,7 @@
             "event-evidence",
             "system-state"
           ],
-          "estSeconds": 30,
+          "estSeconds": 20,
           "areas": [
             "panel.core"
           ]
