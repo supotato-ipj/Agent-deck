@@ -2239,7 +2239,12 @@ async function main() {
         // 点外即收但段末不主动关——浮层窗悬在推荐位上方会把真点击吃掉（rec-click 零事件）。
         // 在开始组与模式组右侧的条带空白处（DIP 340,24——远离一切 pill）先发一次空点，
         // 文档级点击即转达收层（relayCloseAllPopups），再等一拍让浮层收完。
+        // 驻留后才点击（工单483 第五轮真机实锤）：热区跟踪器 25ms 轮询按光标位置开门，
+        // 瞬移+立即点击快过轮询，点击落在穿透态上直接穿到桌面（P23 同轮同病）——先
+        // SetCursorPos 驻留 ≥150ms（≥5 拍）等开门，再发点击。
         const neutral28 = toPhys(340, 24);
+        win32.SetCursorPos(neutral28.x, neutral28.y);
+        await sleep(150);
         win32.clickPhys(neutral28.x, neutral28.y, 'left');
         await sleep(700);
         const recPt28 = (g) => {
@@ -2265,6 +2270,8 @@ async function main() {
           // tape 过滤带 t ≥ clickT0 时间门：事件磁带自轮首起算，不设门会把 P16② 同名
           // 探针的旧事件错配成本段的（第四轮真机实锤的假绿）
           const clickT0 = Date.now();
+          win32.SetCursorPos(pt28.x, pt28.y);
+          await sleep(150); // 热区开门驻留（见上）——AC1 计时起点在 clickT0，驻留不计入
           win32.clickPhys(pt28.x, pt28.y, 'left');
           const clickEv28 = await tape.wait('taskbar-rec-click', (e) => e.name === probe28.name && e.t >= clickT0, { timeoutMs: 5000 });
           let latLaunching28 = null;
