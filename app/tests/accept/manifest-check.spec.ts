@@ -455,7 +455,13 @@ describe('真仓库现状全绿（CI 执行力所在，工单115）', () => {
     // 面板真在写 userData 形落点」与「真机轮转链实际收口」是单测断不到的系统状态面
     // （投影/轮转裁决纯函数与写入器已由 resident-event-log.spec 28 例钉，增段条件②），
     // 增段条件①；段内隔离落点 DECK_RESIDENT_EVENT_LOG 不写用户生产常驻档）。
-    expect(total).toBe(198) // estSeconds 8→3 校准（r1 实跑 took≈0.5s，guard 托管轮段账佐证）
+    // 198 → 199：工单483 增段——49-taskbar 电池增 P28（启动反馈：真点击推荐位探针 →
+    // ≤1s「启动中」DOM 态真机计时 → 启动命令回执 issuedMs 事件戳 ≤1s → 探针窗出场运行
+    // 条目上栏且启动中态消失（收敛）。点击到「启动中」的端到端时延、事件戳入常驻日志的
+    // 真实在档、真实窗口出场驱动的状态机收敛是单测断不到的输入注入/事件存证面（增段
+    // 条件①）；状态机纯函数由 launch-feedback.spec 9 例钉（增段条件②）。estSeconds=20
+    // 为种入后段内实跑预估，随本轮 guard 托管轮段账 took= 校准；预算 228→248 ≤ 250 未上调）。
+    expect(total).toBe(199)
     for (const b of manifest!.batteries.filter((x) => x.kind !== 'experiment')) {
       for (const s of b.segments || []) {
         const eff = (s.areas && s.areas.length) ? s.areas : (b.areas || [])
@@ -661,11 +667,14 @@ describe('文件级例外规则白名单（工单220：文件级规则不得被�
     expect(r.errors.some((e) => e.includes('缺 requiredFileRules 白名单'))).toBe(true)
   })
 
-  it('真仓库现状：40 条文件级例外规则逐条登记在白名单（删一条／改一域即判红）', () => {
+  it('真仓库现状：41 条文件级例外规则逐条登记在白名单（删一条／改一域即判红）', () => {
     const manifest = loadManifest()!
     const fileRules = (manifest.pathAreas || []).filter((r) => (r.path.split('/').pop() || '').includes('.'))
-    expect(fileRules.length).toBe(40)
-    expect(manifest.requiredFileRules!.length).toBe(40)
+    // 40 → 41：工单483 新增 app/src/renderer/launch-feedback.ts → taskbar（启动反馈状态机
+    // 纯函数，唯一消费者是 renderer/taskbar.ts 的条带渲染——不登记会落 app/src/renderer
+    // 默认 panel.core，改它时定向轮选不出 taskbar 段，耦合漏报）
+    expect(fileRules.length).toBe(41)
+    expect(manifest.requiredFileRules!.length).toBe(41)
     for (const req of manifest.requiredFileRules!) {
       const hit = fileRules.find((r) => r.path === req.path)
       expect(hit, `文件级例外规则 ${req.path} 已从映射表消失`).toBeTruthy()

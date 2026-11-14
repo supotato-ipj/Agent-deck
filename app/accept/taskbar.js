@@ -762,12 +762,83 @@ function cleanupP18Probes(p18) {
   try { fs.rmSync(p18.tmpDir, { recursive: true, force: true }); } catch { /* 尽力 */ }
 }
 
+// —— P28 启动反馈探针（工单483）：cmd 副本 + 桌面 lnk + usage 种子（P16 夹具法同款）——
+// 判据链（spec #472 点击 SLO）：真点击推荐位探针 →「启动中」态 ≤1s（DOM .tb-rec.launching）
+// → 启动命令回执 issuedMs ≤1s（taskbar-rec-click-result 事件戳，入常驻/事件日志）→ 探针
+// 控制台窗出场 → 运行条目上栏 → 启动中态收敛（launch-feedback 状态机三路之一）。
+// cmd 副本选型同 P16 启动臂：进程镜像名唯一可轮询、控制台窗 ConsoleWindowClass 任务栏
+// 合格（shouldShowOnTaskbar 判据全过——P16 真机轮实证），回收无残。
+function seedP28Probe(rep) {
+  try {
+    const t = Date.now();
+    const sysRoot = process.env.SystemRoot || 'C:\\Windows';
+    const cmdSrc = path.join(sysRoot, 'System32', 'cmd.exe');
+    if (!fs.existsSync(cmdSrc)) {
+      rep.note('P28 探针前置失败：cmd.exe 缺失');
+      return null;
+    }
+    const desktopRoot = userDesktopRootP16(); // 桌面根解析复用 P16 真源（长路径同款口径）
+    const tmpDir = fs.mkdtempSync(path.join(fs.realpathSync.native(require('os').tmpdir()), 'deck-p28-'));
+    const exe = path.join(tmpDir, 'deck-p28-launch.exe');
+    fs.copyFileSync(cmdSrc, exe);
+    const name = `DECK-P28-${t}-L.lnk`;
+    createShortcutLnkP16(path.join(desktopRoot, name), exe); // lnk 写入复用 P16 真源
+    const display = `DeckP28L`;
+    // usage 种子（P16 同款 byStem 通道）：以「盘上不存在的 .lnk 路径」按显示名对齐打分，
+    // 不依赖 lnk 异步解析的拍差
+    const seedExe = path.join('C:\\deck-p28-usage-seed', String(t), name);
+    const usageDir = path.join(app.getPath('userData'), 'usage');
+    const d = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    const usageFile = path.join(usageDir, `start-${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}.jsonl`);
+    const ts = new Date(Math.floor(t / 1000) * 1000).toISOString().replace(/\.\d{3}Z$/, 'Z');
+    let blob = '';
+    for (let i = 0; i < 2000; i++) blob += JSON.stringify({ ts, exe: seedExe }) + '\n';
+    fs.mkdirSync(usageDir, { recursive: true });
+    fs.appendFileSync(usageFile, blob, 'utf8');
+    return { t, desktopRoot, tmpDir, usageFile, name, display, exe, img: path.basename(exe), seedExe, done: false };
+  } catch (err) {
+    rep.note(`P28 探针种入失败（段内将以缺前置判红）: ${err && err.message}`);
+    return null;
+  }
+}
+
+function cleanupP28Probe(rep, p28) {
+  if (!p28 || p28.done) return;
+  p28.done = true;
+  spawnSync('taskkill', ['/IM', p28.img, '/T', '/F'], { stdio: 'ignore' });
+  const trashFails28 = trashFiles([path.join(p28.desktopRoot, p28.name)]);
+  if (trashFails28.length) rep.fail(`轮末清场：P28 桌面探针 lnk 可恢复删除失败：${trashFails28.map((f) => `${f.name}: ${f.why}`).join('; ')}`);
+  try {
+    // usage 摘除（种子键 + 解析目标双键，P16 同款）
+    const probeKeys28 = new Set([p28.seedExe, p28.exe].map((x) => String(x).toLowerCase()));
+    const text = fs.readFileSync(p28.usageFile, 'utf8');
+    const kept = text.split('\n').filter((l) => {
+      if (!l.trim()) return false;
+      try { return !probeKeys28.has(String(JSON.parse(l).exe || '').toLowerCase()); } catch { return true; }
+    });
+    fs.writeFileSync(p28.usageFile, kept.length ? kept.join('\n') + '\n' : '', 'utf8');
+  } catch { /* 尽力 */ }
+  try {
+    const storeFile = path.join(app.getPath('userData'), 'taskbar-layout.json');
+    const store = JSON.parse(fs.readFileSync(storeFile, 'utf8'));
+    const before = JSON.stringify(store);
+    if (Array.isArray(store.pinned)) store.pinned = store.pinned.filter((e) => !probeKeysStore28(e));
+    if (JSON.stringify(store) !== before) fs.writeFileSync(storeFile, JSON.stringify(store, null, 1) + '\n', 'utf8');
+  } catch { /* 尽力 */ }
+  function probeKeysStore28(e) {
+    return String(e.exe || '').toLowerCase() === String(p28.exe).toLowerCase();
+  }
+  try { fs.rmSync(p28.tmpDir, { recursive: true, force: true }); } catch { /* 尽力 */ }
+}
+
 async function main() {
   const rep = new Report('49-taskbar');
   let panelPid = 0;
   let probe164 = null; // P14 探针（#164）：finally 兜底拆除（段内异常也不漏窗漏类）
   let p16 = null; // P16 推荐组探针（#160）：面板启动前种入（usage 只在服务构造时读盘），finally 兜底清理
   let p18 = null; // P18 统一序列探针（#189）：finally 兜底清理
+  let p28 = null; // P28 启动反馈探针（#483）：面板启动前种入（usage 种子同 P16 口径），P26 收尾清理
   let refS = null; // P22–P25 参照窗 DECK-ACCEPT-SUMMON（工单256：main 级持有——段末就近销毁 + P26 轮末兜底）
   let refHwndS = 0; // 参照窗真实载体句柄（销毁后验按它核验，不虚构子进程）
   const originalConfig = readConfigRaw();
@@ -812,6 +883,10 @@ async function main() {
     // —— P16 推荐组探针（工单160）：先于面板种入（usage 打分只在服务构造时读盘）——
     p16 = seedRecsProbes(rep);
     if (p16) rep.note(`P16 探针已种入：${p16.probes.map((p) => p.name).join(' / ')}`);
+
+    // —— P28 启动反馈探针（工单483）：先于面板种入（usage 种子同 P16 读盘口径）——
+    p28 = seedP28Probe(rep);
+    if (p28) rep.note(`P28 探针已种入：${p28.name}`);
 
     // —— P18 统一序列探针（工单189）：面板拉起后段内种入（无 usage 前置）——
     p18 = seedP18Probes(rep);
@@ -4362,6 +4437,108 @@ static class Probe {
       await sleep(400);
     }
 
+    // ================================================================
+    // P28 启动反馈（工单483，spec #472 点击 SLO ③）：工具图标点击 ≤1s「启动中」视觉态
+    // + 启动命令发出 ≤1s（事件戳口径，首窗判据盲区不重蹈——#478 归因）+ 工具就绪后
+    // 收敛回常态。探针 = 轮前种入的 cmd 副本经推荐位真点击拉起（P16 夹具法）。
+    // ================================================================
+    rep.beginSegment('P28');
+    if (!p28) {
+      rep.fail('P28 前置缺失：探针种入失败（见种入 note）');
+    } else {
+      const norm28 = (s) => String(s || '').toLowerCase();
+      // 等推荐位探针在场（几何帧按 name 找；usage 种子 2000 分压真实条目，P16 同款确定性）
+      let g28 = null;
+      for (let i = 0; i < 40 && !g28; i++) {
+        await sleep(300);
+        const cand = latestGeometry(null);
+        const names28 = ((cand && cand.recommendations) || []).map((r) => r.name);
+        if (names28.includes(p28.name)) g28 = cand;
+      }
+      if (!g28) {
+        rep.fail(`P28 探针未进推荐位（12s 内夹具未在场——usage 种子/桌面扫描链路断或真实条目分压）`
+          + ` 当前推荐位=${JSON.stringify((((latestGeometry(null) || {}).recommendations) || []).map((r) => r.name))}`);
+      } else {
+        const recPt28 = (g) => {
+          const r = (g.recommendations || []).find((x) => x.name === p28.name);
+          return r ? toPhys(r.x + r.w / 2, r.y + r.h / 2) : null;
+        };
+        const ptG28 = await waitGeometrySettled(g28);
+        const pt28 = recPt28(ptG28) || recPt28(latestGeometry(null));
+        if (pt28) {
+          // launching 态 DOM 查询（条带页按 data-exe 精确寻址；CSS 属性选择器串转义反斜杠）
+          const cssEsc28 = p28.exe.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+          const launchingDom28 = () => cdpEval(`(() => {
+            const recEl = document.querySelector('#pill-recs .tb-rec.launching[data-exe="${cssEsc28}"]');
+            const appEl = document.querySelector('.tb-app.running[data-exe="${cssEsc28}"]');
+            const all = [...document.querySelectorAll('.launching')].map((n) => n.dataset.exe || '?');
+            return { recLaunching: !!recEl, appRunning: !!appEl, all };
+          })()`, TASKBAR_TITLE);
+          const consoleWins28 = () => new Set(win32.topLevelWindows()
+            .filter((h) => ['ConsoleWindowClass', 'CASCADIA_HOSTING_WINDOW_CLASS'].includes(win32.className(h))));
+
+          // —— 臂① 真点击 → AC1 ≤1s「启动中」+ AC2 事件戳 ≤1s ——
+          const clickT0 = Date.now();
+          win32.clickPhys(pt28.x, pt28.y, 'left');
+          const clickEv28 = await tape.wait('taskbar-rec-click', (e) => e.name === p28.name, { timeoutMs: 5000 });
+          let latLaunching28 = null;
+          for (let i = 0; i < 30 && latLaunching28 === null; i++) {
+            const d28 = await launchingDom28();
+            if (d28 && d28.recLaunching) latLaunching28 = Date.now() - clickT0;
+            else await sleep(40);
+          }
+          const resultEv28 = await tape.wait('taskbar-rec-click-result',
+            (e) => e.name === p28.name && e.ok === true && typeof e.issuedMs === 'number', { timeoutMs: 5000 });
+          const issued28 = resultEv28 ? resultEv28.issuedMs : null;
+          const stampGap28 = clickEv28 && resultEv28 ? resultEv28.t - clickEv28.t : null;
+          // 启动命令送达对账帧（launchExe 落定 ok:true——命令被 shell 收下）
+          const settleEv28 = await tape.wait('taskbar-app-launch-result',
+            (e) => norm28(e.exe) === norm28(p28.exe) && e.ok === true, { timeoutMs: 8000 });
+          const ac1ok28 = latLaunching28 !== null && latLaunching28 <= 1000;
+          const ac2ok28 = issued28 !== null && issued28 <= 1000 && stampGap28 !== null && stampGap28 <= 1100;
+          if (ac1ok28 && ac2ok28 && settleEv28) {
+            rep.pass(`P28 点击 ≤1s「启动中」+ 命令即发（issuedMs=${issued28}ms，事件对时差=${stampGap28}ms，`
+              + `launching 时延=${latLaunching28}ms，落定对账帧在场）——真机计时入事件日志`);
+          } else {
+            rep.fail(`P28 启动反馈断言：AC1 launching≤1s=${ac1ok28}(lat=${latLaunching28}) `
+              + `AC2 issued≤1s=${ac2ok28}(issuedMs=${issued28},gap=${stampGap28},clickEv=${!!clickEv28},resultEv=${!!resultEv28}) `
+              + `落定对账=${!!settleEv28} launching位=${JSON.stringify(await launchingDom28())}`);
+          }
+
+          // —— 臂② AC3 收敛：探针窗出场 → 运行条目上栏 → 启动中态消失 ——
+          const before28 = consoleWins28();
+          let consoleHwnd28 = null;
+          for (let i = 0; i < 25 && !consoleHwnd28; i++) {
+            await sleep(400);
+            consoleHwnd28 = [...consoleWins28()].find((h) => !before28.has(h)) || null;
+          }
+          let converged28 = null;
+          for (let i = 0; i < 40 && converged28 === null; i++) {
+            const d28 = await launchingDom28();
+            if (d28 && d28.appRunning && !d28.recLaunching) converged28 = Date.now();
+            else await sleep(250);
+          }
+          let procUp28 = false;
+          for (let i = 0; i < 4 && !procUp28; i++) {
+            const r28 = spawnSync('tasklist', ['/FI', `IMAGENAME eq ${p28.img}`, '/NH'], { encoding: 'utf8' });
+            procUp28 = (r28.stdout || '').toLowerCase().includes(p28.img);
+            if (!procUp28) await sleep(300);
+          }
+          spawnSync('taskkill', ['/IM', p28.img, '/T', '/F'], { stdio: 'ignore' }); // 探针收杀（P16 启动臂同款）
+          const ac3ok28 = converged28 !== null && procUp28;
+          if (ac3ok28) {
+            rep.pass(`P28 就绪收敛：探针窗出场（hwnd=${consoleHwnd28 || 'n/a'}）→ 运行条目上栏（.tb-app.running）`
+              + `且启动中态消失（launching 全清）——状态机收敛回常态`);
+          } else {
+            rep.fail(`P28 收敛断言：收敛=${converged28 !== null} 探针进程=${procUp28 ? '在场已收杀' : '未出场'}`
+              + ` 控制台窗=${consoleHwnd28 ? '在场' : '未出场'} launching位=${JSON.stringify(await launchingDom28())}`);
+          }
+        } else {
+          rep.fail(`P28 探针几何缺位（推荐位在场但取不到图标矩形）：${JSON.stringify((((latestGeometry(null) || {}).recommendations) || []).map((r) => r.name))}`);
+        }
+      }
+    }
+
   } catch (err) {
     rep.fail(`电池异常: ${err && err.stack || err}`);
   } finally {
@@ -4388,6 +4565,8 @@ static class Probe {
     }
     cleanupRecsProbes(rep, p16); // P16 痕迹三处摘除（面板已杀，落盘清理不再被回写；桌面 lnk 走可恢复删除，工单256）
     tStep = mark26('P16清场含回收站', tStep);
+    cleanupP28Probe(rep, p28); // P28 痕迹摘除（工单483：进程/桌面 lnk/usage/存储，P16 同款纪律）
+    tStep = mark26('P28清场含回收站', tStep);
     restoreConfig(originalConfig); // 三态还原（工单124：缺位来、缺位去——补齐 null → unlink 分支）
     tStep = mark26('配置还原', tStep);
     // 工单402：用户生产配置外写检查——轮内不该有任何写入；命中即判红并还原（checkConfigDrift 已还原）
@@ -4409,10 +4588,11 @@ static class Probe {
     const trashFails26 = [];
     try {
       deskRoot26 = (p16 && p16.desktopRoot) || userDesktopRootP16();
-      residue26 = fs.readdirSync(deskRoot26).filter((n) => /^DECK-P16-.*\.lnk$/i.test(n));
+      // 工单483 起残留扫描覆盖 P28 探针家族（新夹具纳入轮末自检——增段配套，非放松断言）
+      residue26 = fs.readdirSync(deskRoot26).filter((n) => /^DECK-P(16|28)-.*\.lnk$/i.test(n));
       const tf26 = trashFiles(residue26.map((n) => path.join(deskRoot26, n)));
       trashFails26.push(...tf26.map((f) => `${f.name}: ${f.why}`));
-      if (residue26.length) residueAfter26 = fs.readdirSync(deskRoot26).filter((n) => /^DECK-P16-.*\.lnk$/i.test(n));
+      if (residue26.length) residueAfter26 = fs.readdirSync(deskRoot26).filter((n) => /^DECK-P(16|28)-.*\.lnk$/i.test(n));
     } catch (err) {
       rep.fail(`P26 残留自检前置缺失：桌面根定位/扫描失败：${err && err.message}`);
     }

@@ -1129,8 +1129,10 @@ function makeRecEl(rec: TaskbarRecommendation): HTMLElement {
   el.addEventListener('click', () => {
     window.deck.host.notify('taskbar-rec-click', { name: rec.name, exe: rec.exe })
     // 启动反馈（工单483）：点击即进「启动中」（命令即发语义，rec-click 同款 issued 回执）；
-    // 失败即收态 + toast（点击失败可见反馈）
-    launchFeedback = beginLaunchFeedback(launchFeedback, rec.exe, Date.now())
+    // 失败即收态 + toast（点击失败可见反馈）。issuedMs = 点击 → 桥回执耗时（命令发出时延
+    // 的事件戳读数，app-click 同口径，入常驻事件日志）
+    const recClickT0 = Date.now()
+    launchFeedback = beginLaunchFeedback(launchFeedback, rec.exe, recClickT0)
     scheduleLaunchFeedbackExpiry()
     if (current) requestRender(current)
     void dispatchRecClick(window.deck.bridge, rec.exe)
@@ -1139,7 +1141,7 @@ function makeRecEl(rec: TaskbarRecommendation): HTMLElement {
           launchFeedback = settleLaunchFeedback(launchFeedback, rec.exe)
           showLaunchError(`「${rec.display}」启动失败：${r.error ?? '面板未收到回执'}`)
         }
-        window.deck.host.notify('taskbar-rec-click-result', { name: rec.name, exe: rec.exe, ok: r.ok, ...(r.error ? { error: r.error } : {}) })
+        window.deck.host.notify('taskbar-rec-click-result', { name: rec.name, exe: rec.exe, ok: r.ok, issuedMs: Date.now() - recClickT0, ...(r.error ? { error: r.error } : {}) })
       })
       .catch((err: unknown) => {
         launchFeedback = settleLaunchFeedback(launchFeedback, rec.exe)

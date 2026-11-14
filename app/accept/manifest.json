@@ -941,9 +941,22 @@
           ]
         },
         {
+          "seg": "P28",
+          "ticket": 483,
+          "title": "启动反馈（工单483，spec #472 点击 SLO）：真点击推荐位探针（cmd 副本，P16 夹具法）→ ≤1s「启动中」态（DOM .tb-rec.launching 真机计时）→ 启动命令发出 ≤1s（taskbar-rec-click-result.issuedMs 事件戳 + 事件对时差，入常驻/事件日志——#478 首窗判据盲区不重蹈）→ 探针窗出场运行条目上栏（.tb-app.running）且启动中态消失（launch-feedback 状态机收敛）",
+          "surfaces": [
+            "input-injection",
+            "event-evidence"
+          ],
+          "estSeconds": 20,
+          "areas": [
+            "taskbar"
+          ]
+        },
+        {
           "seg": "P26",
           "ticket": 256,
-          "title": "轮末清场自检（工单256）：参照窗 DECK-ACCEPT-SUMMON 统一销毁＋销毁后验（IsWindow 有界轮询，异常不吞）；桌面 DECK-P16-* 探针残留窄口径扫描（发现先可恢复删除再判红）——电池自己清场，不把污染留给下一轮；段起笔在收尾首行，took= 即统一收尾墙钟",
+          "title": "轮末清场自检（工单256）：参照窗 DECK-ACCEPT-SUMMON 统一销毁＋销毁后验（IsWindow 有界轮询，异常不吞）；桌面 DECK-P16-* 探针残留窄口径扫描（发现先可恢复删除再判红；工单483 起扫描族扩至 DECK-P28-*，新夹具纳入自检非放松）——电池自己清场，不把污染留给下一轮；段起笔在收尾首行，took= 即统一收尾墙钟",
           "surfaces": [
             "system-state"
           ],
@@ -2918,6 +2931,10 @@
       "area": "desktop"
     },
     {
+      "path": "app/src/renderer/launch-feedback.ts",
+      "area": "taskbar"
+    },
+    {
       "path": "app/src/renderer/taskbar",
       "area": "taskbar"
     },
@@ -2957,6 +2974,10 @@
     }
   ],
   "requiredFileRules": [
+    {
+      "path": "app/src/renderer/launch-feedback.ts",
+      "area": "taskbar"
+    },
     {
       "path": "app/src/renderer/conversation.ts",
       "area": "sessions"
