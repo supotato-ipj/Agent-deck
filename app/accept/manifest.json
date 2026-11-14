@@ -495,6 +495,20 @@
           "areas": [
             "render"
           ]
+        },
+        {
+          "seg": "P473",
+          "ticket": 473,
+          "title": "常驻事件日志（工单473，ADR-0032）：零注入生产形态默认开启——启动阶段耗时戳族在档/哨兵 sentinel-armed 武装在证/敏感内容零在档逐值扫描；种满三档到上限验轮转收口（删最老+两级顺移+新档续写）与磁盘总量有界（隔离落点不写用户生产常驻档，真 userData 默认落点由本票零注入手动取证轮留证）",
+          "surfaces": [
+            "system-state",
+            "event-evidence"
+          ],
+          "estSeconds": 15,
+          "areas": [
+            "panel.core",
+            "render"
+          ]
         }
       ],
       "scope": true

@@ -21,7 +21,8 @@ import { extractIconDataUrl } from './desktop/icon-ffi'
 import { createTray } from './tray'
 import { DesktopCoverWatcher } from './desktop-cover'
 import { WinDRestorer } from './wind-restore'
-import { fileEventLog, wireBridgeIpc, wireHostIpc } from './panel-ipc'
+import { fileEventLog, wireBridgeIpc, wireHostIpc, type EventLog } from './panel-ipc'
+import { createBootPhaseLogger, createResidentEventLog, resolveResidentLogFile } from './resident-event-log'
 import { attachLagSentinel, panelLabels } from './lag-sentinel'
 import { pinToBottom } from './win32'
 import { forceShowIcons, IconCarry } from './icon-carry'
@@ -148,17 +149,42 @@ registerPluginScheme()
 /** 托盘 spike（工单48）：最小验收页标题（控制器按标题寻窗截图） */
 export const TRAY_SPIKE_TITLE = 'TRAY-SPIKE-ACCEPT'
 
+/**
+ * 事件日志出口（工单473，ADR-0032 韧性基线「常驻事件日志」）：
+ * - DECK_EVENT_LOG 注入（验收电池形态）→ 行为逐字不变，写指定事件档；
+ * - 零注入 = 生产默认开启常驻事件日志（userData/events.jsonl，滚动轮转 5MB×3 有界，
+ *   写入前过常驻投影：高频数据帧不入、敏感字段/路径形态抹除）——「生产冻结不可观测」
+ *   的取证盲区就此关闭，渲染层哨兵族存证随之在生产形态生效；
+ * - DECK_RESIDENT_EVENT_LOG：落点隔离钩子（电池/测试改写落点），'off' 显式关闭。
+ * 解析失败（getPath 异常等）退 null——存证通道缺席不拦启动。
+ */
+function bootEventLog(): EventLog | null {
+  const envFile = process.env.DECK_EVENT_LOG
+  if (envFile) return fileEventLog(envFile)
+  try {
+    const residentFile = resolveResidentLogFile(process.env.DECK_RESIDENT_EVENT_LOG, app.getPath('userData'))
+    return residentFile ? createResidentEventLog({ file: residentFile }) : null
+  } catch {
+    return null
+  }
+}
+
 async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
   // 滞后哨兵（工单117）：DECK_LAG_SENTINEL 未设时 attachLagSentinel 原样退回同一引用
   // （常规模式零改动）；诊断模式起采样并把 lag 事件（type='main-lag'）落同一事件文件，
   // 标签置/清另落 sidecar（事件文件 + '.spans.jsonl'）——终末冻结时它以无 close 的
   // span-open 收尾，即卡死调用点的签名。
+  // 事件日志（工单473）：DECK_EVENT_LOG 注入走验收档（行为逐字不变）；零注入即生产
+  // 默认常驻事件日志（bootEventLog 头注）。启动锚点与 boot-phase 耗时戳族同步起表——
+  // 事件磁带读侧可经 projectBootPhases 投影出「启动各阶段耗时戳事件族」。
   const eventFile = process.env.DECK_EVENT_LOG
   const log = attachLagSentinel(
-    fileEventLog(eventFile),
+    bootEventLog(),
     process.env.DECK_LAG_SENTINEL,
     eventFile ? `${eventFile}.spans.jsonl` : undefined,
   )
+  const bootT0 = Date.now()
+  const bootPhase = createBootPhaseLogger((e) => log?.append(e), bootT0)
   const fallback = {
     panel: defaultPanelGeometry(screen.getPrimaryDisplay().bounds),
     weather: defaultWeather(),
@@ -176,6 +202,7 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
   for (const w of warnings) console.warn('[deck]', w)
   if (created) console.log('[deck] config.json 不存在，已按当前屏幕几何写出默认值')
   log?.append({ type: 'boot', pid: process.pid })
+  bootPhase('config-loaded')
 
   // 自启项（工单11）：Startup 快捷方式由面板自举，且每次启动顺手清掉旧看门狗链的自启项。
   // 只有 config.autostart.appDir 声明的生产安装位置才有权新建/接管（开发 worktree 不劫持）。
@@ -192,6 +219,7 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
     console.warn('[deck] 自启项处理失败:', err)
     log?.append({ type: 'autostart-failed', message: (err as Error).message })
   }
+  bootPhase('autostart-applied')
 
   const usageDir = path.join(app.getPath('userData'), 'usage')
 
@@ -629,6 +657,7 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
   })
   await kernel.start()
   kernelRef = kernel
+  bootPhase('kernel-started')
   // 投放包视图数据（工单331）：快照随拍按 capabilities 裁剪后推给各包独立上下文
   kernel.on('panel/changed', (snap) => droppedPackageHost.pushSnapshot(snap))
   // 媒体快照代次变化（工单336）：桥事件收敛后的即时重推——获批 media.read 的在装包
@@ -689,6 +718,7 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
   // 首拍就位（工单05 教训）：等数据面第一份快照再开窗，dock 随首绘就位；
   // 子进程异常时 whenReady 超时放行，面板以空数据面先起、子进程就绪后自然补拍。
   await kernel.panelData.whenReady
+  bootPhase('panel-data-ready')
 
   installPluginProtocol({ appRoot: RENDERER_ROOT, sharedRoot: path.join(__dirname, '../shared'), host: kernel.plugins, log: (e) => log?.append(e) })
 
@@ -827,6 +857,9 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
   // 渲染层活性心跳武装（#91）：面板窗接 2s 心跳（deck:host-beat，渲染层 main.ts 起拍），
   // 哨兵失能档只在武装态发射。任务栏条带不接（观测口径不变，epic 暂停期不碰）。
   wireHostIpc(win, tracker, log, { sentinelHeartbeat: true })
+  // 启动阶段戳（工单473）：窗与宿主通道接线完成——生产形态哨兵自此武装在证
+  //（sentinel-armed 随本拍落常驻档，零注入也不再是取证盲区）。
+  bootPhase('window-wired')
   // 投放包 bounds 表并入热区命中集（工单343）：包宿主 live 表变化即推送（含初始表），
   // hit-test 主进程侧并入——包视图区域解除穿透，OS 自然递点击，不建输入注入桥。
   droppedPackageHost.onBoundsChanged((rects) => tracker.setPackageRects(rects))
@@ -850,6 +883,7 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
   win.once('ready-to-show', () => {
     win.showInactive()
     if (pinToBottom(win)) log?.append({ type: 'pin', reason: 'startup' })
+    bootPhase('panel-visible')
     // Win+D 防抖恢复：首显后开始盯收起态。 ToggleDesktop 不把面板最小化（skipTaskbar 下
     // shell 不视其为任务栏窗；注意 Electron 44 的 skipTaskbar 并不设置 WS_EX_TOOLWINDOW
     // 位——「工具窗豁免」的旧说法不成立，见工单07），防抖机制兜底任意最小化来源，
@@ -898,7 +932,7 @@ if (RESTORE_MODE) {
   // 失败的 freak 现场）时用户有自救出口。appbar 复原先于 forceShowNativeTaskbar：
   // 置位态翻开 Shell_TrayWnd 的 WS_VISIBLE 位（spike 附记「窗口显示位」≠「视觉在场」），
   // 后行会被「已可见」骗过；先卸置位，可见性兜底才做真工作。异步退避有界（<3s），走完再退场。
-  const log = fileEventLog(process.env.DECK_EVENT_LOG)
+  const log = bootEventLog()
   log?.append({ type: 'carry-boot', pid: process.pid, mode: 'restore' })
   forceShowIcons(log)
   void restoreAppBarStateFromLedger(log, 'force').finally(() => {
@@ -925,12 +959,12 @@ if (RESTORE_MODE) {
   // 在场（工单验收项）。锁在 spawn 前显式让位：app 拆卸不瞬时，残留锁会把刚拉起的面板
   // 当成二次实例拒掉（真机烟雾实测）；空窗期内双拉起仍至多一个面板（锁二选一）。
   if (!app.requestSingleInstanceLock()) {
-    fileEventLog(process.env.DECK_EVENT_LOG)?.append({ type: 'single-instance-refused', pid: process.pid })
+    bootEventLog()?.append({ type: 'single-instance-refused', pid: process.pid })
     app.quit()
   } else {
     app.disableHardwareAcceleration() // 守卫不开窗口，压掉 GPU 进程
     app.releaseSingleInstanceLock()
-    const log = fileEventLog(process.env.DECK_EVENT_LOG)
+    const log = bootEventLog()
     const carry = new IconCarry(log)
     log?.append({ type: 'carry-boot', pid: process.pid, mode: 'carry' })
     carry.begin()
@@ -994,7 +1028,7 @@ if (RESTORE_MODE) {
   }
 } else if (!IS_CONTROLLER_MODE && !TRAY_SPIKE_MODE && !PANEL_ACCEPT_MODE && !app.requestSingleInstanceLock()) {
   // 面板模式的单实例守卫（工单03）：锁由本进程持有直至退出，second-instance 唤回面板。
-  fileEventLog(process.env.DECK_EVENT_LOG)?.append({ type: 'single-instance-refused', pid: process.pid })
+  bootEventLog()?.append({ type: 'single-instance-refused', pid: process.pid })
   app.quit()
 } else {
   // 面板进程（--panel / --panel-accept）：电池要求时开 CDP 端口——运行时的桥动作（如任务栏
@@ -1014,7 +1048,7 @@ if (RESTORE_MODE) {
   // 旧注册点，半开机态被 guard 清场也能走完整退出链（mid-boot 的部分 dispose 风险由取证
   // 轮覆盖，失败兜底仍是 guard 强杀，见 ADR-0030）。showPanel 侧经晚绑钩子由 bootPanel 接管。
   if (PANEL_MODE) {
-    const quitLog = fileEventLog(process.env.DECK_EVENT_LOG)
+    const quitLog = bootEventLog()
     app.on('second-instance', (_event, argv) => {
       dispatchSecondInstance(argv, {
         quitRequest: () => {

@@ -33,8 +33,13 @@ export interface DesktopWorkspaceServiceOptions {
   file?: string | null
   /** 已加载的 config（可变引用：配对落盘即整份回写该对象，taskbar 同款） */
   config?: AppConfig | null
-  /** reconciliation 轮询间隔（ms）；0 = 不起轮询（离线测试手动驱动） */
+  /** 对账驱动拍距（ms）；0 = 不起定时器（离线测试手动驱动）。工单474 起拍内只查内核
+   * 事件句柄（零进程创建、零注册表读），点火才读事实全对账——原「每拍 spawn reg.exe
+   * 的常驻轮询」随本票退役（ADR-0032 事件驱动优先于轮询）。 */
   pollMs?: number
+  /** 通知丢失兜底对账上限（ms，工单474）：布防在但通知漏发时，至多隔这么久全对账一次——
+   * 不因事件漏发而永久失明（验收③）。 */
+  fallbackReconcileMs?: number
   /** 切换确认预算（ms；spec #369 决策 17 预算 ≤1000，缺省 1000） */
   confirmTimeoutMs?: number
   /** 确认轮询步进（ms；缺省 60，t371 实测确认 161-360ms，步进足够密） */
@@ -59,6 +64,15 @@ export interface DesktopWorkspaceServiceOptions {
     currentId?: () => string | null
     /** 跟随窗清单（面板/任务栏/（后续）胶囊；生产装配按当前 hwnd 惰性供给） */
     followTargets?: () => Array<{ hwnd: number; label: string }>
+    /** 注册表变更通知面（工单474）：布防 start / 点火消费 consumeFired（内部已复位并重新
+     * 布防——消费后读事实=无盲窗）/ 撤防 stop；available=false = 通知面缺席（服务降级为
+     * 每拍全对账，读面仍进程内直读、零进程创建）。缺省延迟绑定 desktop/vd-registry 单例。 */
+    watch?: {
+      available(): boolean
+      start(): boolean
+      consumeFired(): boolean
+      stop(): void
+    }
   }
 }
 
@@ -72,11 +86,19 @@ interface WorkspaceDeps {
   moveWindowToDesktop: (hwnd: number, id: string) => boolean
   currentId: () => string | null
   followTargets: () => Array<{ hwnd: number; label: string }>
+  watch: {
+    available(): boolean
+    start(): boolean
+    consumeFired(): boolean
+    stop(): void
+  }
 }
 
 const DEFAULT_POLL_MS = 500
 const DEFAULT_CONFIRM_TIMEOUT_MS = 1000
 const DEFAULT_CONFIRM_POLL_MS = 60
+/** 通知丢失兜底对账上限（工单474）：30s 与 ADR-0032 的新鲜度降级档（硬件摘要 30 秒）同量级 */
+const DEFAULT_FALLBACK_RECONCILE_MS = 30_000
 
 /**
  * 桌面工作区服务（工单375）：shared state 的持有者。事件回推 'workspace/changed'——
@@ -95,6 +117,7 @@ export class DesktopWorkspaceService extends Service {
   private readonly pollMs: number
   private readonly confirmTimeoutMs: number
   private readonly confirmPollMs: number
+  private readonly fallbackReconcileMs: number
   private readonly enabledFlag: boolean
   private pairing: StoredPairing | null
   private currentMode: DesktopMode = 'unmanaged'
@@ -104,6 +127,10 @@ export class DesktopWorkspaceService extends Service {
   private startPromise: Promise<void> | null = null
   private pollTimer: NodeJS.Timeout | null = null
   private reconciling = false
+  /** 注册表变更通知布防在案（工单474）：watchTick 首拍布防，失败当拍自愈重试 */
+  private watchArmed = false
+  /** 最近一次全对账时点（兜底窗口基准；Date.now()） */
+  private lastFullReconcileAt = 0
 
   constructor(ctx: Context, options: DesktopWorkspaceServiceOptions = {}) {
     super(ctx, 'desktopWorkspace')
@@ -113,6 +140,7 @@ export class DesktopWorkspaceService extends Service {
     this.pollMs = options.pollMs ?? DEFAULT_POLL_MS
     this.confirmTimeoutMs = options.confirmTimeoutMs ?? DEFAULT_CONFIRM_TIMEOUT_MS
     this.confirmPollMs = options.confirmPollMs ?? DEFAULT_CONFIRM_POLL_MS
+    this.fallbackReconcileMs = options.fallbackReconcileMs ?? DEFAULT_FALLBACK_RECONCILE_MS
     this.pairing = options.pairing?.normalId || options.pairing?.agentId ? { ...options.pairing } : null
     this.deps = {
       internalAvailable: options.deps?.internalAvailable
@@ -120,7 +148,11 @@ export class DesktopWorkspaceService extends Service {
       facts: options.deps?.facts
         ?? (async () => {
           const vd = require('../desktop/virtual-desktop') as typeof import('../desktop/virtual-desktop')
-          const reg = await vd.registryDesktopFacts()
+          // 工单474：事实读改进程内直读（零进程创建）为常驻主路；直读缺席（异常环境）才
+          // 回退 reg.exe 单查询——兜底路径不常驻（直读失败常驻化的环境里 COM 绑定必然
+          // 同源失败、服务整体失败关闭，轮询根本不会起）。
+          const vdr = require('../desktop/vd-registry') as typeof import('../desktop/vd-registry')
+          const reg = vdr.readRegistryFactsDirect() ?? await vd.registryDesktopFacts()
           return { ids: reg.ids, current: reg.current, internalCurrent: vd.internalCurrentDesktopId() }
         }),
       createDesktop: options.deps?.createDesktop
@@ -136,6 +168,7 @@ export class DesktopWorkspaceService extends Service {
       currentId: options.deps?.currentId
         ?? (() => (require('../desktop/virtual-desktop') as typeof import('../desktop/virtual-desktop')).internalCurrentDesktopId()),
       followTargets: options.deps?.followTargets ?? (() => []),
+      watch: options.deps?.watch ?? vdWatchDefault(),
     }
     // 装配即起跑（幂等）：开关关闭 = 零桌面零轮询（start 内失败关闭）；重复调用共用
     // 同一在途 Promise（离线测试 await svc.start() 即可对齐装配期已起跑的那一轮）。
@@ -180,7 +213,10 @@ export class DesktopWorkspaceService extends Service {
       return
     }
     await this.reconcileNow()
-    if (this.pollMs > 0) this.pollTimer = setInterval(() => void this.reconcileNow(), this.pollMs)
+    this.lastFullReconcileAt = Date.now()
+    // 工单474：定时器只驱动「通知检查拍」（watchTick），不再每拍读事实——常驻轮询
+    // spawn reg.exe 的旧形态退役；事件点火的核实动作见 watchTick。
+    if (this.pollMs > 0) this.pollTimer = setInterval(() => void this.watchTick(), this.pollMs)
     this.ctx.emit('workspace/changed', this.state())
   }
 
@@ -329,6 +365,44 @@ export class DesktopWorkspaceService extends Service {
    * 回推。绝不调 SwitchDesktop——用户经 Win+Ctrl+方向/TaskView 去哪个桌面都尊重。
    * 配对身份失效（桌面被删）→ 未配对安全态（不自动重建、不吞并残留桌面）。
    */
+  /**
+   * 通知检查一拍（工单474，ADR-0032「事件驱动优先于轮询」）：定时器与离线测试共用
+   * 的驱动入口。拍内只查内核事件句柄（零进程创建、零注册表读）；布防拍顺手补一次全
+   * 对账（布防后读事实=无盲窗——布防前发生的变化不漏）；点火拍按 reconciliation 同一
+   * 路径全对账（与轮询驱动等价，验收④）。降级（通知面缺席=每拍全对账）与漏发兜底
+   * （上限窗口强制全对账）保证通知丢失/布防失败都有界，不因事件漏发而永久失明（验收③）。
+   */
+  async watchTick(): Promise<void> {
+    if (!this.available()) return
+    const w = this.deps.watch
+    if (!w.available()) {
+      // 通知面缺席（绑定失败/损坏）：降级回旧轮询语义——每拍全对账。事实读是进程内
+      // 直读（零进程创建），成本回到轮询形态但不再 spawn 子进程。
+      await this.reconcileNow()
+      this.lastFullReconcileAt = Date.now()
+      return
+    }
+    if (!this.watchArmed) {
+      this.watchArmed = w.start()
+      // 布防当拍全对账：doStart 的首轮对账与布防之间存在窗口，布防前的事实变化靠这一拍补齐。
+      // 布防失败当拍也全对账（下一拍自愈重试布防——失败态即降级拍对账，不失明）。
+      await this.reconcileNow()
+      this.lastFullReconcileAt = Date.now()
+      return
+    }
+    if (w.consumeFired()) {
+      await this.reconcileNow()
+      this.lastFullReconcileAt = Date.now()
+      return
+    }
+    // 漏发兜底（验收③有界）：布防在但窗口内零点火——至多隔 fallbackReconcileMs 强制
+    // 全对账一次。explorer 重启重建注册表键、通知链路静默损坏等场景都由本窗兜住。
+    if (Date.now() - this.lastFullReconcileAt >= this.fallbackReconcileMs) {
+      await this.reconcileNow()
+      this.lastFullReconcileAt = Date.now()
+    }
+  }
+
   async reconcileNow(): Promise<void> {
     if (!this.available() || this.reconciling) return
     this.reconciling = true
@@ -389,6 +463,12 @@ export class DesktopWorkspaceService extends Service {
       clearInterval(this.pollTimer)
       this.pollTimer = null
     }
+    if (this.watchArmed) {
+      this.watchArmed = false
+      try {
+        this.deps.watch.stop()
+      } catch { /* 撤防失败不追（进程退出即回收内核句柄） */ }
+    }
     this.switching = false
     this.target = null
     this.ctx.emit('workspace/changed', this.state())
@@ -402,4 +482,25 @@ export class DesktopWorkspaceService extends Service {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms))
+}
+
+/** 通知面缺省绑定（工单474）：惰性转发包装——包装对象本身纯 JS，`require('../desktop/
+ * vd-registry')` 推迟到首拍才发生（vd-registry 模块加载零 FFI、lazy-bind 在其 start() 内）。
+ * 离线测试不注入 watch 也不起定时器（pollMs=0）→ 包装方法永不调用 → 零 require 零 FFI；
+ * 装载/调用异常按通知面缺席失败关闭（false → 服务降级每拍全对账）。 */
+function vdWatchDefault(): WorkspaceDeps['watch'] {
+  let inner: WorkspaceDeps['watch'] | null = null
+  const load = (): WorkspaceDeps['watch'] => {
+    if (!inner) {
+      const m = require('../desktop/vd-registry') as typeof import('../desktop/vd-registry')
+      inner = m.vdRegistryWatch()
+    }
+    return inner
+  }
+  return {
+    available: () => { try { return load().available() } catch { return false } },
+    start: () => { try { return load().start() } catch { return false } },
+    consumeFired: () => { try { return load().consumeFired() } catch { return false } },
+    stop: () => { try { load().stop() } catch { /* 撤防失败不追（进程退出即回收内核句柄） */ } },
+  }
 }
