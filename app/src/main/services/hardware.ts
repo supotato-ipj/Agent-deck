@@ -25,9 +25,10 @@ export interface HardwareSources {
 
 export function systemHardwareSources(gpuRunner?: GpuRunner): HardwareSources {
   // koffi/nvidia-smi 真源延迟 require：契约测试注入假源时不加载原生件。
-  // GPU TTL 5s（自 Python 时代的 3s 拉长）：展示性指标无需秒级新鲜度，
-  // spawn 节奏减半（每分钟 12 次），消解周期性驱动查询对 GPU/DWM 的微抖动。
-  const gpu = new GpuQuery(5000, gpuRunner)
+  // GPU TTL 30s（工单476，自 5s 拉长；ADR-0032 用户拍板硬件摘要 30 秒新鲜度）：
+  // 外部采样命令一次 50~200ms CPU，5s 节奏一天约 1.7 万次进程创建——降频到
+  // 30s（每天 2880 次）且只在采样步发生，消解周期性驱动查询对 GPU/DWM 的微抖动。
+  const gpu = new GpuQuery(30_000, gpuRunner)
   return {
     cpuTimes: () => aggregateCpuTimes(os.cpus()),
     memory: () => ({ total: os.totalmem(), free: os.freemem() }),
@@ -42,7 +43,9 @@ function fmtGB(bytes: number): string {
 }
 
 /**
- * 硬件指标服务：CPU/内存/GPU/网络 1Hz 采样 + 300 点历史。
+ * 硬件指标服务：CPU/内存/GPU/网络 30s 级采样（工单476，ADR-0032 用户拍板的新鲜度
+ * 降级；采样节奏由内核定时器硬件间隔驱动，快照读取不触发外部源——外部采样命令
+ * 只随采样步发生）+ 300 点历史。
  * 逐源隔离：任一源异常只缺位对应字段，不拖垮其余采样（工单04 验收第 5 条）。
  */
 export class HardwareService extends Service {
@@ -52,6 +55,7 @@ export class HardwareService extends Service {
   private mem: { total: number; free: number } | null = null
   private prevNet: { t: number; counters: Map<number, NetCounters> } | null = null
   private rates: { download_speed: number; upload_speed: number } | null = null
+  private gpu: GpuReadout = {}
   private readonly history = {
     cpu: new HistoryRing(HISTORY_LEN),
     dl: new HistoryRing(HISTORY_LEN),
@@ -91,11 +95,12 @@ export class HardwareService extends Service {
       this.prevNet = null
       this.rates = null
     }
-    const gpu = this.readGpu()
+    // GPU 外部采样随采样步发生（工单476）：异常给空对象占位（源缺位语义同工单04）
+    this.gpu = this.readGpu()
     this.history.cpu.push(this.cpu)
     this.history.dl.push(this.rates === null ? null : this.rates.download_speed)
     this.history.up.push(this.rates === null ? null : this.rates.upload_speed)
-    this.history.gpu.push(typeof gpu.gpu_usage === 'number' ? gpu.gpu_usage : null)
+    this.history.gpu.push(typeof this.gpu.gpu_usage === 'number' ? this.gpu.gpu_usage : null)
   }
 
   /** GPU 读源带隔离：异常给空对象，不连累其余仪表 */
@@ -113,7 +118,7 @@ export class HardwareService extends Service {
       memory: this.mem ? (1 - this.mem.free / this.mem.total) * 100 : 0,
       memory_gb: this.mem ? `${fmtGB(this.mem.total - this.mem.free)} GB/${fmtGB(this.mem.total)} GB` : '-- GB/-- GB',
     }
-    const gpu = this.readGpu()
+    const gpu = this.gpu
     if (typeof gpu.gpu_usage === 'number') out.gpu_usage = gpu.gpu_usage
     if (typeof gpu.gpu_temp === 'number') out.gpu_temp = gpu.gpu_temp
     if (gpu.vram_usage !== undefined) out.vram_usage = gpu.vram_usage

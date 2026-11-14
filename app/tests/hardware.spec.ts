@@ -121,6 +121,24 @@ describe('GpuQuery 3 秒缓存', () => {
     }
   }
 
+  /** 异步 runner 夹具：完成时刻由 flush() 手动驱动（真实 nvidia-smi 的 I/O 延迟形态，
+   * 完成晚于发起——工单476 的 60s 减频缺陷只在延迟形态下暴露） */
+  function asyncFixture() {
+    let t = 0
+    const calls: string[][] = []
+    let pending: ((err: Error | null, stdout: string) => void) | null = null
+    const q = new GpuQuery(3000, (args, cb) => {
+      calls.push(args)
+      pending = cb
+    }, () => t)
+    return {
+      q,
+      calls,
+      flush: () => { const cb = pending; pending = null; cb?.(null, '50, 60, 100, 200') },
+      advance: (ms: number) => { t += ms },
+    }
+  }
+
   it('缓存窗内不重复查询；失败也占满 TTL（Python 语义）', async () => {
     const f = fixture()
     expect(f.q.read()).toEqual({ gpu_usage: 50, gpu_temp: 60, vram_usage: 50 }) // 同步 runner 当拍即得
@@ -128,5 +146,21 @@ describe('GpuQuery 3 秒缓存', () => {
     f.advance(1000)
     expect(f.q.read()).toEqual({ gpu_usage: 50, gpu_temp: 60, vram_usage: 50 })
     expect(f.calls).toHaveLength(1)
+  })
+
+  it('窗从查询发起起算（完成不后移窗起点）：间隔恰为窗长的读取每拍都刷新（工单476）', () => {
+    // 采样间隔 = 窗长（生产 30s/30s）时，若窗起点被完成时刻后移，每拍都差一个
+    // 完成延迟不过窗、实际 spawn 减半（B2 轮真机实证 60s 节奏）——窗起点必须在发起时刻。
+    const f = asyncFixture()
+    f.q.read() // t=0 发起
+    f.advance(200)
+    f.flush() // 完成落后发起 200ms（I/O 延迟形态）
+    f.advance(2800) // 下一采样拍 t=3000（间隔 = 窗长）
+    f.q.read()
+    expect(f.calls).toHaveLength(2) // 不被完成延迟拖过窗：本拍必须刷新（旧实现 2800<3000 缓存 → 红）
+    f.flush()
+    f.advance(1500) // 半窗后的读取不触发
+    f.q.read()
+    expect(f.calls).toHaveLength(2)
   })
 })

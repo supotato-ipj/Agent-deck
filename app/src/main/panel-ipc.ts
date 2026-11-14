@@ -7,6 +7,7 @@ import type { HotzoneTracker } from './hotzone'
 import { pinToBottom } from './win32'
 import { RenderSentinelSampler } from './render-sentinel-sampler'
 import { panelLabels } from './lag-sentinel'
+import type { EscapeHatchEntry } from './taskbar/escape-hatch'
 
 /** 存证事件日志：验收电池经 DECK_EVENT_LOG 环境变量启用，主进程关键行为逐行落盘。 */
 export interface EventLog {
@@ -73,8 +74,10 @@ export function wireBridgeIpc(win: BrowserWindow, bridge: BridgeService, events:
  * 每个处理器按 event.sender 路由到所属窗口；窗口关闭即摘除自己的处理器，不泄漏。
  * hooks.pin：键盘模式进出的 z 序恢复动作——面板钉底（默认），任务栏窗重申置顶。
  * hooks.sentinelHeartbeat：哨兵失能档发射武装（#91）——只有接了渲染层活性心跳的窗
- * （面板）才武装；静默对没接心跳的窗（任务栏条带）没有失能语义，武装了全是伪档。 */
-export function wireHostIpc(win: BrowserWindow, tracker: HotzoneTracker | null, log: EventLog | null, hooks: { pin?: (w: BrowserWindow) => void; sentinelHeartbeat?: boolean; onNotify?: (type: string, payload: Record<string, unknown> | undefined) => void; onPreviewLayout?: (rects: Array<{ hwnd: number; x: number; y: number; w: number; h: number }>) => void } = {}): void {
+ * （面板）才武装；静默对没接心跳的窗（任务栏条带）没有失能语义，武装了全是伪档。
+ * hooks.onEscapeEntry：逃生口入口（工单480）——失能档/崩溃/恢复三事件同拍喂给任务栏
+ * 控制器（面板瘫痪期原生任务栏退路）；判据在纯函数（taskbar/escape-hatch.ts）。 */
+export function wireHostIpc(win: BrowserWindow, tracker: HotzoneTracker | null, log: EventLog | null, hooks: { pin?: (w: BrowserWindow) => void; sentinelHeartbeat?: boolean; onNotify?: (type: string, payload: Record<string, unknown> | undefined) => void; onPreviewLayout?: (rects: Array<{ hwnd: number; x: number; y: number; w: number; h: number }>) => void; onEscapeEntry?: (entry: EscapeHatchEntry) => void } = {}): void {
   const pin = hooks.pin ?? pinToBottom
   const onHotzones = (event: Electron.IpcMainEvent, rects: HotzoneRect[]) => {
     if (event.sender !== win.webContents) return
@@ -128,7 +131,7 @@ export function wireHostIpc(win: BrowserWindow, tracker: HotzoneTracker | null, 
   ipcMain.on('deck:host-preview-layout', onPreviewLayout)
   ipcMain.on('deck:host-keyboard-mode', onKeyboardMode)
   ipcMain.on('deck:host-drag-session', onDragSession)
-  wireRenderSentinel(win, log, { heartbeat: hooks.sentinelHeartbeat ?? false })
+  wireRenderSentinel(win, log, { heartbeat: hooks.sentinelHeartbeat ?? false, onEscapeEntry: hooks.onEscapeEntry })
   win.once('closed', () => {
     ipcMain.removeListener('deck:host-set-hotzones', onHotzones)
     ipcMain.removeListener('deck:host-notify', onNotify)
@@ -152,10 +155,15 @@ export function wireHostIpc(win: BrowserWindow, tracker: HotzoneTracker | null, 
  * deck:host-beat 同走此通道，见 preload/渲染层 main.ts）；仅面板窗接活性心跳，故失能档
  * 发射（renderer-frozen / renderer-unfrozen 闭合）只在 heartbeat=true 时接线——没接心跳的
  * 窗静默没有失能语义（工单94 口径）。armed 存证标记「武装在证」，验收断言找它。 */
-function wireRenderSentinel(win: BrowserWindow, log: EventLog | null, opts: { heartbeat?: boolean } = {}): void {
+function wireRenderSentinel(win: BrowserWindow, log: EventLog | null, opts: { heartbeat?: boolean; onEscapeEntry?: (entry: EscapeHatchEntry) => void } = {}): void {
   const wc = win.webContents;
   wc.on('unresponsive', () => log?.append({ type: 'renderer-unresponsive' }));
-  wc.on('render-process-gone', (_e, d) => log?.append({ type: 'renderer-gone', reason: d.reason, exitCode: d.exitCode }));
+  // 崩溃入口（工单480）：接在 log 闸门外——逃生口不依赖存证在档。clean-exit（退出序列
+  // 伴生）与窗已销两桩事实宿主侧补证，开不开口由纯函数（taskbar/escape-hatch.ts）裁决。
+  wc.on('render-process-gone', (_e, d) => {
+    log?.append({ type: 'renderer-gone', reason: d.reason, exitCode: d.exitCode });
+    opts.onEscapeEntry?.({ kind: 'crash', cleanExit: d.reason === 'clean-exit', windowDestroyed: win.isDestroyed() });
+  });
   if (!log) return;
   // 心跳：靠渲染层上行（活性心跳 + 热区声明/存证）计时，不另加定时器——渲染层死了就没有心跳
   const sentinel = new RenderSentinelSampler({
@@ -167,17 +175,25 @@ function wireRenderSentinel(win: BrowserWindow, log: EventLog | null, opts: { he
       pid: wc.getOSProcessId(),
     }),
     ...(opts.heartbeat ? {
-      onFrozen: ({ quietMs }) => log.append({
-        type: 'renderer-frozen',
-        quietMs,
-        crashed: wc.isCrashed(),
-        pid: wc.getOSProcessId(),
-      }),
-      onUnfrozen: ({ frozenMs }) => log.append({
-        type: 'renderer-unfrozen',
-        frozenMs,
-        pid: wc.getOSProcessId(),
-      }),
+      onFrozen: ({ quietMs }) => {
+        log.append({
+          type: 'renderer-frozen',
+          quietMs,
+          crashed: wc.isCrashed(),
+          pid: wc.getOSProcessId(),
+        })
+        // 失能档入口（工单480）：存证同拍喂逃生口——面板瘫痪期原生任务栏自动还原
+        opts.onEscapeEntry?.({ kind: 'frozen' })
+      },
+      onUnfrozen: ({ frozenMs }) => {
+        log.append({
+          type: 'renderer-unfrozen',
+          frozenMs,
+          pid: wc.getOSProcessId(),
+        })
+        // 恢复入口（工单480）：episode 闭合 = 面板恢复，逃生口欠的重新接管该还了
+        opts.onEscapeEntry?.({ kind: 'recovered' })
+      },
     } : {}),
     heartbeatArmed: opts.heartbeat,
     isWindowDestroyed: () => win.isDestroyed(),

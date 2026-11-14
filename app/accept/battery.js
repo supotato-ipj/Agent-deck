@@ -6301,6 +6301,143 @@ async function runSegments() {
         rep.fail(`忙环后面板进程不在场：pid=${panelPid}（忙环不该带走面板）`);
       }
     })();
+
+    // —— P473 常驻事件日志（工单473，ADR-0032）——
+    // 零验收注入的生产形态默认开启：不给 DECK_EVENT_LOG，面板写 DECK_RESIDENT_EVENT_LOG
+    // 隔离落点（只改落点不改默认开启——真 userData 默认落点由本票零注入手动取证轮单独留证，
+    // 电池不往用户生产常驻档里写测试数据）。断言四面：启动阶段耗时戳族在档（①）、
+    // sentinel-armed 生产形态武装在证（②）、轮转收口与总量有界（③）、敏感内容零在档（⑤）。
+    // 段位垫底：本段自建第二面板（--panel-accept 绕锁，P7 探针句柄同款纪律），任务栏已禁、
+    // 托盘断言（P8/P10）已在前面跑过——双面板并存的扰动面到不了任何既有断言。
+    rep.beginSegment('P473');
+    await (async () => {
+      // 投影函数与面板同一份代码（dist 构建产物，npm run accept 先 build）
+      const { projectBootPhases } = require(path.join(APP_ROOT, 'dist', 'main', 'resident-event-log.js'));
+      const isoDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deck473-resident-'));
+      const isoFile = path.join(isoDir, 'events.jsonl');
+      const residentTape = createEventTape(isoFile, { defaultTimeoutMs: 8000 });
+      const readJsonl473 = (file) => {
+        try {
+          return fs.readFileSync(file, 'utf8').split('\n').filter(Boolean)
+            .map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+        } catch { return []; }
+      };
+      const handle473 = createPanelHandle({
+        execPath: process.execPath,
+        appRoot: APP_ROOT,
+        eventLogPath: '', // 零验收注入：不给 DECK_EVENT_LOG（extraEnv 显式置空防继承）
+        // boot 自报 pid 落常驻档（轮转后仍落现役档）——就绪判据改读隔离落点
+        readEvents: () => readJsonl473(isoFile),
+        archivePath: path.join(__dirname, 'evidence', '03-panel-handle-473.log'),
+        log: (m) => rep.note(`[473] ${m}`),
+      });
+      const launch473 = () => handle473.launch({
+        mode: 'accept',
+        stdio: 'drain',
+        extraEnv: { DECK_EVENT_LOG: '', DECK_RESIDENT_EVENT_LOG: isoFile },
+      });
+      const stop473 = async (when) => {
+        const cleared = await handle473.stop();
+        cleared && cleared.gone === false
+          ? rep.exclude(`P473 面板强退失败（${when}）：有界等待内仍存活（pid=${cleared.pidsLeft.join(', ')}）`, '清场后仍有面板进程存活', 'panel-forcekill')
+          : rep.note(`P473 面板已清场（${when}）：${cleared ? cleared.outcome : 'idle'}`);
+      };
+
+      // —— 臂一：零注入启动 → 常驻档在盘、启动阶段族在档、哨兵武装在证、敏感内容零在档 ——
+      const ra473 = launch473();
+      const win473 = await handle473.waitWindow({ title: PANEL_TITLE, cls: 'Chrome_WidgetWin_1', timeoutMs: 25000 });
+      win473
+        ? rep.pass(`常驻形态面板就绪：零验收注入拉起（pid=${handle473.alive() ? '存活' : '不在'}），常驻档落点已隔离`)
+        : rep.fail('常驻形态面板未就绪：25s 内未见到就绪窗（常驻事件日志接线疑断——先查 [473] stderr 档）');
+      const EXPECTED_PHASES = ['config-loaded', 'autostart-applied', 'kernel-started', 'panel-data-ready', 'window-wired', 'panel-visible'];
+      let phases = [];
+      const phaseDeadline = Date.now() + 20000;
+      while (Date.now() < phaseDeadline) {
+        phases = projectBootPhases(residentTape.all());
+        if (EXPECTED_PHASES.every((p) => phases.some((s) => s.phase === p))) break;
+        await sleep(250);
+      }
+      const missing = EXPECTED_PHASES.filter((p) => !phases.some((s) => s.phase === p));
+      missing.length === 0
+        ? rep.pass(`启动阶段耗时戳族在档（票面①）：${phases.map((s) => `${s.phase}=${s.elapsedMs}ms`).join(' ')}`)
+        : rep.fail(`启动阶段族缺相位（票面①）：${missing.join(',')}（got=${JSON.stringify(phases)}）`);
+      phases.length > 0 && phases.every((s, i) => i === 0 || s.elapsedMs >= phases[i - 1].elapsedMs)
+        ? rep.pass('启动阶段耗时戳单调非递减（同一启动锚点起算，族内可读出「卡在哪一秒」）')
+        : rep.fail(`启动阶段耗时戳非单调：${JSON.stringify(phases)}`);
+      const armed473 = await residentTape.wait('sentinel-armed', undefined, { since: ra473.launchedAt, timeoutMs: 15000 });
+      armed473
+        ? rep.pass(`渲染层哨兵生产形态武装在证（票面②）：sentinel-armed pid=${armed473.pid}（零注入即采样落盘，生产冻结不再盲区）`)
+        : rep.fail('哨兵生产形态未武装（票面②）：常驻档 15s 内无 sentinel-armed');
+      // 敏感内容零在档（票面⑤）：高频数据帧族不入 + 抹除名单字段必须已是 '[redacted]' +
+      // 任意字符串值不得残留路径形态（盘符/UNC/file URL）。全档逐行逐值走。
+      const rows473 = residentTape.all();
+      const REDACT_KEYS473 = new Set(['name', 'names', 'title', 'tooltip', 'query', 'path', 'paths', 'file', 'files', 'cwd', 'dir', 'link', 'url', 'href']);
+      const PATHISH_RE = /[A-Za-z]:[\\/]|\\\\|file:\/\//i;
+      const leaks473 = [];
+      const walk473 = (v, where) => {
+        if (typeof v === 'string') {
+          if (PATHISH_RE.test(v)) leaks473.push(`${where}: 路径形态字符串 ${JSON.stringify(v.slice(0, 80))}`);
+        } else if (Array.isArray(v)) {
+          v.forEach((x, i) => walk473(x, `${where}[${i}]`));
+        } else if (v && typeof v === 'object') {
+          for (const [k, x] of Object.entries(v)) {
+            if (REDACT_KEYS473.has(k) && x !== '[redacted]') leaks473.push(`${where}.${k}=${JSON.stringify(x)} 未抹除`);
+            else walk473(x, `${where}.${k}`);
+          }
+        }
+      };
+      for (const r of rows473) {
+        if (r.type === 'taskbar-right-status' || r.type === 'desktop-rendered') leaks473.push(`高频数据帧 ${r.type} 在档（应整体滤除）`);
+        walk473(r, r.type || '?');
+      }
+      leaks473.length === 0
+        ? rep.pass(`敏感内容零在档（票面⑤）：常驻档 ${rows473.length} 行逐值扫描，无路径形态/无未抹除敏感字段/无高频数据帧`)
+        : rep.fail(`敏感内容在档（票面⑤）：${JSON.stringify(leaks473.slice(0, 6))}`);
+      await stop473('臂一末');
+
+      // —— 臂二：轮转收口（票面③）——种满三档到上限，下次落盘即全链轮转（删最老+两级顺移），
+      // 新代次数据落新档。盘面裁决：读文件内容与档数，不读面板内部状态。
+      // 三档种子各用不同填充字节——内容全同时「最老档已删」判据失去区分力
+      //（r1 实证：顺移断言全绿但删除判据把顺移后的 2 号误判成残留）。
+      const CAP473 = 5 * 1024 * 1024;
+      const seedAt473 = (f, byte) => fs.writeFileSync(f, Buffer.alloc(CAP473, byte));
+      const f1 = path.join(isoDir, 'events.1.jsonl');
+      const f2 = path.join(isoDir, 'events.2.jsonl');
+      seedAt473(isoFile, 0x78); seedAt473(f1, 0x79); seedAt473(f2, 0x7a);
+      const old1 = fs.readFileSync(f1);
+      const old2 = fs.readFileSync(f2);
+      const oldActive = fs.readFileSync(isoFile);
+      launch473();
+      const win473b = await handle473.waitWindow({ title: PANEL_TITLE, cls: 'Chrome_WidgetWin_1', timeoutMs: 25000 });
+      let freshRows = [];
+      const rotDeadline = Date.now() + 25000;
+      while (Date.now() < rotDeadline) {
+        freshRows = readJsonl473(isoFile);
+        if (freshRows.length > 0 && fs.existsSync(isoFile) && fs.statSync(isoFile).size < CAP473) break;
+        await sleep(250);
+      }
+      freshRows.length > 0 && win473b
+        ? rep.pass(`轮转后新档续写：现役档重开即收新代次数据（首行 ${freshRows[0].type}，共 ${freshRows.length} 行）`)
+        : rep.fail(`轮转后现役档无新数据（win=${!!win473b} rows=${freshRows.length}）——轮转疑未触发或写入通道断`);
+      fs.readFileSync(f1).equals(oldActive)
+        ? rep.pass('轮转顺移正确：旧现役档让位为 1 号（字节一致）')
+        : rep.fail('轮转顺移异常：1 号档不是旧现役内容');
+      fs.readFileSync(f2).equals(old1)
+        ? rep.pass('轮转顺移正确：旧 1 号进 2 号（字节一致）')
+        : rep.fail('轮转顺移异常：2 号档不是旧 1 号内容');
+      const chainNames = fs.readdirSync(isoDir).filter((n) => n.startsWith('events'));
+      const oldestGone = !fs.readdirSync(isoDir).some((n) => { const c = fs.readFileSync(path.join(isoDir, n)); return c.equals(old2); });
+      chainNames.length === 3 && oldestGone
+        ? rep.pass(`轮转收口（票面③）：链恒 3 档 [${chainNames.join(', ')}]，最老档已删——磁盘总量有界`)
+        : rep.fail(`轮转收口异常（票面③）：档=${chainNames.join(', ')} 最老档残留=${!oldestGone}`);
+      const totalBytes = chainNames.reduce((a, n) => a + fs.statSync(path.join(isoDir, n)).size, 0);
+      totalBytes <= CAP473 * 3 + 65536
+        ? rep.pass(`磁盘总量有界（票面③）：链合计 ${(totalBytes / 1048576).toFixed(2)}MB ≤ 5MB×3+64KB 松弛`)
+        : rep.fail(`磁盘总量越界：${totalBytes} 字节`);
+      await stop473('臂二末');
+      try { fs.rmSync(isoDir, { recursive: true, force: true }); } catch { /* 尽力 */ }
+      rep.note('P473 隔离落点已清（临时目录）');
+    })();
   } catch (e) {
     rep.fail(`电池中断: ${e && e.stack || e}`);
     // 面板真死过的话，这里是唯一能说清「为什么死」的地方（首跑 52 fail 排查卡在这）：

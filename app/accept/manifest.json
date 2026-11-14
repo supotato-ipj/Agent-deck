@@ -495,6 +495,20 @@
           "areas": [
             "render"
           ]
+        },
+        {
+          "seg": "P473",
+          "ticket": 473,
+          "title": "常驻事件日志（工单473，ADR-0032）：零注入生产形态默认开启——启动阶段耗时戳族在档/哨兵 sentinel-armed 武装在证/敏感内容零在档逐值扫描；种满三档到上限验轮转收口（删最老+两级顺移+新档续写）与磁盘总量有界（隔离落点不写用户生产常驻档，真 userData 默认落点由本票零注入手动取证轮留证）",
+          "surfaces": [
+            "system-state",
+            "event-evidence"
+          ],
+          "estSeconds": 15,
+          "areas": [
+            "panel.core",
+            "render"
+          ]
         }
       ],
       "scope": true
@@ -950,8 +964,8 @@
       "cdpPort": 9224,
       "kind": null,
       "budgetSeconds": 120,
-      "lastMeasuredSeconds": 66,
-      "lastMeasuredAt": "2026-10-26",
+      "lastMeasuredSeconds": 60,
+      "lastMeasuredAt": "2026-11-14",
       "segments": [
         {
           "seg": "A1",
@@ -1060,12 +1074,41 @@
         {
           "seg": "C2",
           "ticket": 260,
-          "title": "off 口径（工单260；工单293 全接管期改段；工单308 M1 改写）：off 只关收栏档、托管恒置位——B 相位两次接管生命周期各恰两次状态写入（建立置位 set 一 + 退场复原 restored 一，reason=disabled/force）；运行期零其他写入；退出后读回=开跑前基线",
+          "title": "off 口径（工单260；工单293 全接管期改段；工单308 M1 改写；工单480 计数窗收窄）：off 只关收栏档、托管恒置位——B 相位两次接管生命周期各恰两次状态写入（建立置位 set 一 + 退场复原 restored 一，reason=disabled/force）；运行期零其他写入；退出后读回=开跑前基线。工单480：计数窗排除 D 相位逃生口轮的接管生命周期（[sinceD,sinceDend) 排除窗，D1/D2 自记账）",
           "surfaces": [
             "system-state",
             "event-evidence"
           ],
           "estSeconds": 1,
+          "areas": [
+            "taskbar"
+          ]
+        },
+        {
+          "seg": "D1",
+          "ticket": 480,
+          "title": "逃生口·失能档全链（工单480，ADR-0032）：忙环注入面板冻结 ≈9s（P12 同款）→ renderer-frozen 同拍开逃生口（交还三件套 reason=escape-hatch）→ 原生任务栏自动还原且开始菜单可达（Win 键唤出、前台易主 startmenuexperiencehost/searchhost——本机 autohide 偏好下坐标点击打不中滑出的栏，键位入口是可达性真判据）+ 条带销毁 + 还原账清账（盘上账本离场）→ 忙环结束心跳回归（renderer-unfrozen）→ 重新接管（原生栏再隐、条带回来、接管建立记账、落盘账重建）——接管/还原账目两向核对",
+          "surfaces": [
+            "system-state",
+            "event-evidence",
+            "input-injection"
+          ],
+          "estSeconds": 12,
+          "areas": [
+            "taskbar",
+            "render"
+          ]
+        },
+        {
+          "seg": "D2",
+          "ticket": 480,
+          "title": "逃生口·热键保险丝（工单480）：面板健康时全局热键（ESCAPE_HATCH_HOTKEY，SendInput 同串合成）强制还原原生任务栏（保险丝语义——防自动检测本身失灵：原生栏还原、条带销毁、还原账清账）→ 再按恢复接管（原生栏再隐、条带回来、账重建）——toggle 语义成立",
+          "surfaces": [
+            "input-injection",
+            "system-state",
+            "event-evidence"
+          ],
+          "estSeconds": 4,
           "areas": [
             "taskbar"
           ]
