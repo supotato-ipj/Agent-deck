@@ -579,8 +579,12 @@ function seedRecsProbes(rep) {
     fs.copyFileSync(path.join(sysRoot, 'System32', 'cmd.exe'), launchTarget);
     const tags = ['A', 'B', 'C', 'D', 'E'];
     const probes = tags.map((tag, i) => {
+      // 工单483 起五探针全是 cmd 副本（原 B-E 为非可执行占位文件）：P28 复用 P16 夹具
+      // 点「当时可见的第一枚探针」做启动反馈断言，而 P20 臂C 会把推荐位首条拖去升手钉、
+      // P16③ 又手钉 B——可见集成员随段次漂移，五枚都可启动才稳。P16 各臂从不启动 B-E
+      // （启动臂只用 A），占位→副本不改变任何既有断言的语义。
       const target = i === 0 ? launchTarget : path.join(tmpDir, `deck-p16-probe-${tag}.exe`);
-      if (i > 0) fs.writeFileSync(target, 'deck-p16 placeholder (not an executable)', 'utf8');
+      if (i > 0) fs.copyFileSync(cmdSrc, target);
       const name = `DECK-P16-${t}-${tag}.lnk`;
       return { name, display: `DeckP16${tag}`, exe: target };
     });
@@ -622,6 +626,9 @@ function cleanupRecsProbes(rep, p16) {
   if (!p16 || p16.done) return;
   p16.done = true;
   const all16 = [...p16.probes, ...(p16.extras || [])]; // 工单161 起含递补候选 F/G
+  // 工单483 起五探针皆 cmd 副本（可启动）：P28 收杀自己拉起的实例，此处兜底扫杀全部
+  // 探针镜像（未被拉起时 taskkill 空枚举无害）
+  for (const p of p16.probes) spawnSync('taskkill', ['/IM', path.basename(p.exe), '/F'], { stdio: 'ignore' });
   // 工单256：桌面夹具批量可恢复删除（单会话），失败显式记账——静默残留会污染下一轮
   const t16 = Date.now();
   const steps16 = [];
@@ -4368,36 +4375,47 @@ static class Probe {
     // 收敛回常态。探针 = 复用 P16 夹具探针 A（cmd 副本；P21 复用 P18 探针同款先例——
     // 独立种入会与 P16 五探针争推荐位分数，2026-11-14 首轮真机实证互挤判红）。
     // ================================================================
+    // P28 启动反馈（工单483，spec #472 点击 SLO ③）：工具图标点击 ≤1s「启动中」视觉态
+    // + 启动命令发出 ≤1s（事件戳口径，首窗判据盲区不重蹈——#478 归因）+ 工具就绪后
+    // 收敛回常态。探针 = 复用 P16 夹具（五枚皆 cmd 副本；P21 复用 P18 探针同款先例）
+    // 自适应点「此刻可见的第一枚」——独立种入会与 P16 五探针争推荐位分数（首轮实证），
+    // 固定点探针 A 又会撞上 P20 臂C 把推荐位首条拖去升手钉（二轮实证）。
+    // ================================================================
     rep.beginSegment('P28');
     if (!p16) {
       rep.fail('P28 前置缺失：P16 探针夹具缺席（见种入 note）');
     } else {
-      const probeA28 = p16.probes[0];
       const norm28 = (s) => String(s || '').toLowerCase();
-      // 防跨轮残留：清掉上一轮（或异常轮）可能残存的探针实例，镜像名探测才唯一
-      spawnSync('taskkill', ['/IM', probeA28.img, '/F'], { stdio: 'ignore' });
-      await sleep(300);
-      // 等推荐位探针在场（几何帧按 name 找；P16 usage 种子已压真实条目，本段零新夹具）
-      let g28 = null;
-      for (let i = 0; i < 40 && !g28; i++) {
+      // 自适应选探针（工单483）：可见集成员随段次漂移（P16③ 手钉 B、P20 臂C 把推荐位
+      // 首条拖去升手钉）——点「此刻可见的第一枚 P16 探针」，谁可见点谁，不与任何段的
+      // 夹具消费序耦合
+      const pickProbe28 = () => {
+        const names28 = (((latestGeometry(null) || {}).recommendations) || []).map((r) => r.name);
+        return p16.probes.find((p) => names28.includes(p.name)) || null;
+      };
+      let probe28 = pickProbe28();
+      for (let i = 0; i < 40 && !probe28; i++) {
         await sleep(300);
-        const cand = latestGeometry(null);
-        const names28 = ((cand && cand.recommendations) || []).map((r) => r.name);
-        if (names28.includes(probeA28.name)) g28 = cand;
+        probe28 = pickProbe28();
       }
-      if (!g28) {
-        rep.fail(`P28 探针未进推荐位（12s 内 P16 探针 A 不在场——P16 种入/推荐位互挤，见 P16 段账）`
+      if (!probe28) {
+        rep.fail(`P28 探针未进推荐位（12s 内五枚 P16 探针无一可见——P16 种入/池互挤，见 P16 段账）`
           + ` 当前推荐位=${JSON.stringify((((latestGeometry(null) || {}).recommendations) || []).map((r) => r.name))}`);
       } else {
+        const probeImg28 = path.basename(probe28.exe);
+        // 防跨轮残留：清掉该镜像可能残存的实例，进程出场探测才唯一
+        spawnSync('taskkill', ['/IM', probeImg28, '/F'], { stdio: 'ignore' });
+        await sleep(300);
         const recPt28 = (g) => {
-          const r = (g.recommendations || []).find((x) => x.name === probeA28.name);
+          const r = (g.recommendations || []).find((x) => x.name === probe28.name);
           return r ? toPhys(r.x + r.w / 2, r.y + r.h / 2) : null;
         };
-        const ptG28 = await waitGeometrySettled(g28);
-        const pt28 = recPt28(ptG28) || recPt28(latestGeometry(null));
-        if (pt28) {
+        const pt28 = recPt28(await waitGeometrySettled(latestGeometry(null))) || recPt28(latestGeometry(null));
+        if (!pt28) {
+          rep.fail(`P28 探针几何缺位（推荐位在场但取不到图标矩形）：${JSON.stringify((((latestGeometry(null) || {}).recommendations) || []).map((r) => r.name))}`);
+        } else {
           // launching 态 DOM 查询（条带页按 data-exe 精确寻址；CSS 属性选择器串转义反斜杠）
-          const cssEsc28 = probeA28.exe.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+          const cssEsc28 = probe28.exe.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
           const launchingDom28 = () => cdpEval(`(() => {
             const recEl = document.querySelector('#pill-recs .tb-rec.launching[data-exe="${cssEsc28}"]');
             const appEl = document.querySelector('.tb-app.running[data-exe="${cssEsc28}"]');
@@ -4410,7 +4428,7 @@ static class Probe {
           // —— 臂① 真点击 → AC1 ≤1s「启动中」+ AC2 事件戳 ≤1s ——
           const clickT0 = Date.now();
           win32.clickPhys(pt28.x, pt28.y, 'left');
-          const clickEv28 = await tape.wait('taskbar-rec-click', (e) => e.name === probeA28.name, { timeoutMs: 5000 });
+          const clickEv28 = await tape.wait('taskbar-rec-click', (e) => e.name === probe28.name, { timeoutMs: 5000 });
           let latLaunching28 = null;
           for (let i = 0; i < 30 && latLaunching28 === null; i++) {
             const d28 = await launchingDom28();
@@ -4418,12 +4436,12 @@ static class Probe {
             else await sleep(40);
           }
           const resultEv28 = await tape.wait('taskbar-rec-click-result',
-            (e) => e.name === probeA28.name && e.ok === true && typeof e.issuedMs === 'number', { timeoutMs: 5000 });
+            (e) => e.name === probe28.name && e.ok === true && typeof e.issuedMs === 'number', { timeoutMs: 5000 });
           const issued28 = resultEv28 ? resultEv28.issuedMs : null;
           const stampGap28 = clickEv28 && resultEv28 ? resultEv28.t - clickEv28.t : null;
           // 启动命令送达对账帧（launchExe 落定 ok:true——命令被 shell 收下）
           const settleEv28 = await tape.wait('taskbar-app-launch-result',
-            (e) => norm28(e.exe) === norm28(probeA28.exe) && e.ok === true, { timeoutMs: 8000 });
+            (e) => norm28(e.exe) === norm28(probe28.exe) && e.ok === true, { timeoutMs: 8000 });
           const ac1ok28 = latLaunching28 !== null && latLaunching28 <= 1000;
           const ac2ok28 = issued28 !== null && issued28 <= 1000 && stampGap28 !== null && stampGap28 <= 1100;
           if (ac1ok28 && ac2ok28 && settleEv28) {
@@ -4450,11 +4468,11 @@ static class Probe {
           }
           let procUp28 = false;
           for (let i = 0; i < 4 && !procUp28; i++) {
-            const r28 = spawnSync('tasklist', ['/FI', `IMAGENAME eq ${probeA28.img}`, '/NH'], { encoding: 'utf8' });
-            procUp28 = (r28.stdout || '').toLowerCase().includes(probeA28.img);
+            const r28 = spawnSync('tasklist', ['/FI', `IMAGENAME eq ${probeImg28}`, '/NH'], { encoding: 'utf8' });
+            procUp28 = (r28.stdout || '').toLowerCase().includes(probeImg28);
             if (!procUp28) await sleep(300);
           }
-          spawnSync('taskkill', ['/IM', probeA28.img, '/T', '/F'], { stdio: 'ignore' }); // 探针收杀（P16 启动臂同款）
+          spawnSync('taskkill', ['/IM', probeImg28, '/T', '/F'], { stdio: 'ignore' }); // 探针收杀（P16 启动臂同款）
           const ac3ok28 = converged28 !== null && procUp28;
           if (ac3ok28) {
             rep.pass(`P28 就绪收敛：探针窗出场（hwnd=${consoleHwnd28 || 'n/a'}）→ 运行条目上栏（.tb-app.running）`
@@ -4463,11 +4481,10 @@ static class Probe {
             rep.fail(`P28 收敛断言：收敛=${converged28 !== null} 探针进程=${procUp28 ? '在场已收杀' : '未出场'}`
               + ` 控制台窗=${consoleHwnd28 ? '在场' : '未出场'} launching位=${JSON.stringify(await launchingDom28())}`);
           }
-        } else {
-          rep.fail(`P28 探针几何缺位（推荐位在场但取不到图标矩形）：${JSON.stringify((((latestGeometry(null) || {}).recommendations) || []).map((r) => r.name))}`);
         }
       }
     }
+
 
   } catch (err) {
     rep.fail(`电池异常: ${err && err.stack || err}`);
