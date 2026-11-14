@@ -6451,21 +6451,24 @@ async function runSegments() {
     //    ~0.3s，4 倍以上量级差为稳定序）；
     // ③ 条带早现：DECK-TASKBAR 条带窗先于 panel-data-ready 在场（占位条带先于数据）；
     // ④ 占位→填充：panel-data-ready 之前的 desktop-rendered 帧全部空数据（apps=0 且
-    //    docs=0——数据面首拍未到渲染层只能拿到空投影），之后出现填充帧（原位填充）；
+    //    docs=0——数据面首拍未到渲染层只能拿到空投影），之后出现填充帧（原位填充）。
+    //    观测通道=r1 实证修正：desktop-rendered 属高频数据帧族，常驻日志投影整体滤除
+    //    （resident-event-log DROP_EVENT_TYPES）——本段双面板走 DECK_EVENT_LOG 事件档
+    //    读事件磁带（boot-phase/workspace-start-gate/desktop-rendered 全在档）；
     // ⑤ 工作区启动链路存证在档（workspace-start-gate）——启动链在显式上界治理下照常
     //    走完（#478③ 收口的运行时面）。
     rep.beginSegment('P481');
     await (async () => {
       const { projectBootPhases } = require(path.join(APP_ROOT, 'dist', 'main', 'resident-event-log.js'));
       const isoDir481 = fs.mkdtempSync(path.join(os.tmpdir(), 'deck481-skeleton-'));
-      const isoFile481 = path.join(isoDir481, 'events.jsonl');
+      const evtFile481 = path.join(isoDir481, 'events-battery.jsonl');
       // 双面板单配 config：抄当前隔离落点原文，仅开 taskbar（清场删除，零接触生产配置）
       const cfg481 = path.join(isoDir481, 'config.json');
       const baseRaw481 = fs.existsSync(CONFIG_FILE) ? fs.readFileSync(CONFIG_FILE, 'utf8') : null;
       let baseJson481 = {};
       try { baseJson481 = baseRaw481 ? JSON.parse(baseRaw481) : {}; } catch { baseJson481 = {}; }
       fs.writeFileSync(cfg481, JSON.stringify({ ...baseJson481, taskbar: { ...(baseJson481.taskbar ?? {}), enabled: true } }, null, 2) + '\n', 'utf8');
-      const residentTape481 = createEventTape(isoFile481, { defaultTimeoutMs: 8000 });
+      const evtTape481 = createEventTape(evtFile481, { defaultTimeoutMs: 8000 });
       const readJsonl481 = (file) => {
         try {
           return fs.readFileSync(file, 'utf8').split('\n').filter(Boolean)
@@ -6476,7 +6479,7 @@ async function runSegments() {
         execPath: process.execPath,
         appRoot: APP_ROOT,
         eventLogPath: '',
-        readEvents: () => readJsonl481(isoFile481),
+        readEvents: () => readJsonl481(evtFile481),
         archivePath: path.join(__dirname, 'evidence', '03-panel-handle-481.log'),
         log: (m) => rep.note(`[481] ${m}`),
       });
@@ -6489,7 +6492,7 @@ async function runSegments() {
       const ra481 = handle481.launch({
         mode: 'accept',
         stdio: 'drain',
-        extraEnv: { DECK_EVENT_LOG: '', DECK_RESIDENT_EVENT_LOG: isoFile481, DECK_CONFIG_FILE: cfg481 },
+        extraEnv: { DECK_EVENT_LOG: evtFile481, DECK_CONFIG_FILE: cfg481 },
       });
       // 条带早现（③）：条带窗在骨架主线即建（先于数据面首拍）——先等条带再读相位
       const strip481 = await handle481.waitWindow({ title: 'DECK-TASKBAR', cls: 'Chrome_WidgetWin_1', timeoutMs: 15000 });
@@ -6504,7 +6507,7 @@ async function runSegments() {
       let bootT481 = 0;
       const bootDeadline = Date.now() + 15000;
       while (Date.now() < bootDeadline) {
-        const bootEvt = readJsonl481(isoFile481).find((e) => e.type === 'boot');
+        const bootEvt = readJsonl481(evtFile481).find((e) => e.type === 'boot');
         if (bootEvt) { bootT481 = bootEvt.t; break; }
         await sleep(200);
       }
@@ -6513,7 +6516,7 @@ async function runSegments() {
       let phases481 = [];
       const phaseDeadline481 = Date.now() + 25000;
       while (Date.now() < phaseDeadline481) {
-        phases481 = projectBootPhases(residentTape481.all());
+        phases481 = projectBootPhases(evtTape481.all());
         if (EXPECTED481.every((p) => phases481.some((s) => s.phase === p))) break;
         await sleep(250);
       }
@@ -6547,7 +6550,7 @@ async function runSegments() {
       let frames481 = [];
       const fillDeadline481 = Date.now() + 10000;
       for (;;) {
-        frames481 = residentTape481.all(undefined, (e) => e.type === 'desktop-rendered', { since: ra481.launchedAt });
+        frames481 = evtTape481.all(undefined, (e) => e.type === 'desktop-rendered', { since: ra481.launchedAt });
         if (frames481.some((f) => f.t >= dataAt481) || Date.now() >= fillDeadline481) break;
         await sleep(250);
       }
@@ -6562,7 +6565,7 @@ async function runSegments() {
         ? rep.pass(`数据到达原位填充（票面④）：首拍后 ${postFrames.length} 帧 desktop-rendered 在档（桥接推送填充链路走通）`)
         : rep.fail('填充帧缺席（票面④）：panel-data-ready 后 10s 内无 desktop-rendered——首拍推送或渲染疑断');
       // 工作区启动链路存证（⑤）：显式上界治理下启动照常走完
-      const wsGate481 = await residentTape481.wait('workspace-start-gate', undefined, { since: ra481.launchedAt, timeoutMs: 15000 });
+      const wsGate481 = await evtTape481.wait('workspace-start-gate', undefined, { since: ra481.launchedAt, timeoutMs: 15000 });
       wsGate481
         ? rep.pass(`工作区启动链路存证在档（票面⑤）：workspace-start-gate after=${wsGate481.after} paired=${wsGate481.paired}`)
         : rep.fail('工作区启动链路存证缺席（票面⑤）：workspace-start-gate 15s 内未落档——后补链疑断');
