@@ -509,6 +509,20 @@
             "panel.core",
             "render"
           ]
+        },
+        {
+          "seg": "P481",
+          "ticket": 481,
+          "title": "骨架屏启动重排（工单481，ADR-0032）：隔离双面板（单配 config 开条带）断言启动时序——boot-phase 六相位族完整且单调（#473 契约保持）/骨架接线与首显早于自启项维护完成（主线不等 PowerShell，#478④ 运行时证明）/条带窗先于数据面首拍在场（占位条带先行）/首拍前桌面帧全空数据、首拍后有填充帧（占位→原位填充）/workspace-start-gate 存证在档（启动链显式上界治理下走完）",
+          "surfaces": [
+            "event-evidence",
+            "system-state"
+          ],
+          "estSeconds": 45,
+          "areas": [
+            "panel.core",
+            "taskbar"
+          ]
         }
       ],
       "scope": true

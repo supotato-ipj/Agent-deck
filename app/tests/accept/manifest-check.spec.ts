@@ -455,7 +455,14 @@ describe('真仓库现状全绿（CI 执行力所在，工单115）', () => {
     // 面板真在写 userData 形落点」与「真机轮转链实际收口」是单测断不到的系统状态面
     // （投影/轮转裁决纯函数与写入器已由 resident-event-log.spec 28 例钉，增段条件②），
     // 增段条件①；段内隔离落点 DECK_RESIDENT_EVENT_LOG 不写用户生产常驻档）。
-    expect(total).toBe(198) // estSeconds 8→3 校准（r1 实跑 took≈0.5s，guard 托管轮段账佐证）
+    // 198 → 199：工单481 增段——03-battery 电池增 P481（骨架屏启动重排，ADR-0032：
+    // 隔离双面板断言启动时序——boot-phase 六相位族完整且单调（#473 契约保持）、骨架
+    // 接线与首显早于自启项维护完成（主线不等 PowerShell，#478④ 运行时证明）、条带窗
+    // 先于数据面首拍在场、首拍前桌面帧全空数据首拍后有填充帧（占位→原位填充）、
+    // workspace-start-gate 存证在档——真机启动链的窗口/数据时序是单测断不到的系统
+    // 状态面（先后序与上界的纯函数编排已由 boot-sequence.spec 15 例钉，增段条件②），
+    // 增段条件①；一段绑定一工单481，段内单配 config 开条带不触碰生产配置）。
+    expect(total).toBe(199) // estSeconds 8→3 校准（r1 实跑 took≈0.5s，guard 托管轮段账佐证）
     for (const b of manifest!.batteries.filter((x) => x.kind !== 'experiment')) {
       for (const s of b.segments || []) {
         const eff = (s.areas && s.areas.length) ? s.areas : (b.areas || [])
