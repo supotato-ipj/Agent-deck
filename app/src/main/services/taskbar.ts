@@ -911,14 +911,10 @@ export class TaskbarService extends Service {
     const entry = this.recEntry(exe)
     if (!entry) return { ok: false, error: '栏外身份不启动' }
     try {
-<<<<<<< HEAD
-      // 工单483：命令即发不等待（launchIssued 头注）——推荐组启动同款 issued 语义
+      // 工单483：命令即发不等待（launchIssued 头注）——推荐组启动同款 issued 语义；通道经
+      // launchApp（工单482 路由，explorer 特判保留）
       this.launchIssued(entry.exe)
       return { ok: true }
-=======
-      const err = await this.launchApp(entry.exe)
-      return err ? { ok: false, error: err } : { ok: true }
->>>>>>> 2b47b2e4551ea65191af92509b38359eb0d63eab
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : String(err) }
     }
