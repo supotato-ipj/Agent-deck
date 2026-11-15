@@ -14,15 +14,16 @@
 
 ## 真机验收调度协议（accept-guard）
 
-本机两个并行检出共享同一**验收槽**：同一时刻只允许一个真机 GUI 验收在跑（桌面注入、单实例锁、共用 userData、托盘/前景窗断言互相踩踏）。任何验收入口（`npm run accept` / `accept:tray` / `accept:taskbar` 等 electron `--accept*` 模式）一律经 guard 托管，禁止裸跑：
+本机多个并行检出共享同一**验收槽**：同一时刻只允许一个真机 GUI 验收在跑（桌面注入、单实例锁、共用 userData、托盘/前景窗断言互相踩踏）。任何验收入口（`npm run accept` / `accept:tray` / `accept:taskbar` 等 electron `--accept*` 模式）一律经 guard 托管，禁止裸跑：
 
-    node D:\test-folder\.accept-guard\guard.mjs hold --as <zcode|kimicode> --purpose accept-sprint -- npm run accept
+    node D:\test-folder\wallpaperengine-research\app\accept\guard\guard.mjs hold --as <zcode|kimicode> --purpose accept-sprint -- npm run accept
 
-- hold 全自动完成整个生命周期：排队 → 拿槽 → 清理各检出面板进程 → 系统通知 → 驻留心跳 → 验收命令退出自动释放。
+- guard 源码已仓内化（`app/accept/guard/`，工单495）；家目录（租约/相位/配置）固定在 `D:\test-folder\.accept-guard`，不随检出走。任一检出用同一命令行发起即可。
+- hold 全自动完成整个生命周期：排队 → 拿槽 → 清理各检出面板进程 → **任务栏还原兜底** → 系统通知 → 驻留心跳 → 验收命令退出前**再兜一次任务栏还原** → 自动释放（电池强杀面板可能把原生任务栏留在隐藏态，还原兜底把它还给系统）。
 - 抢槽前先 `guard.mjs status` 看对方相位；要出验收证据的一轮用 `--purpose accept-sprint`（排队优先），空挡自测用默认 `selftest`。
 - 发起前可声明相位让对方可见：`guard.mjs phase <dev|selftest|accept-sprint|human> --note "..."`。
 - 排队最长等 30 分钟，超时以退出码 3 结束——转做不占主机的活，或请用户裁决（用户应急解锁：`guard.mjs release --force`）。
-- guard 自带行为电池：`guard.mjs selftest`（沙箱跑，不碰真实租约与真实面板）。协议全文与词汇表见 guard 目录 README.md。
+- guard 自带行为电池：`guard.mjs selftest`（或 app/ 下 `npm run guard:selftest`；沙箱跑，不碰真实租约与真实面板）。协议全文与词汇表见 `app/accept/guard/README.md`。
 
 ## 远端分支纪律
 

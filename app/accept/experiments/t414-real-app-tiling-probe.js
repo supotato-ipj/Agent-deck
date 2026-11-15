@@ -24,7 +24,7 @@
  *
  * 用法（**必须经 accept-guard 托管**，禁裸跑——本机多检出共享同一验收槽）：
  *   先 npm run build（探针 require dist 产物），再：
- *   node D:\test-folder\.accept-guard\guard.mjs hold --as zcode --purpose accept-sprint -- \
+ *   node D:\test-folder\wallpaperengine-research\app\accept\guard\guard.mjs hold --as zcode --purpose accept-sprint -- \
  *     node app\accept\experiments\t414-real-app-tiling-probe.js [工单tag，缺省 414]
  *
  * 退出码：0 = 观察能力成立（状态+几何+诊断事件三面取证完成；夹取复现与否见报告）；

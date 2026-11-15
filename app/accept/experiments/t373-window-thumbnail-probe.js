@@ -39,7 +39,7 @@
  *     实时传播信号；进程树经启动器转手，用 tasklist pid 差集圈定后 taskkill。
  *
  * 用法（**必须经 accept-guard 托管**，禁裸跑——本机多检出共享同一验收槽）：
- *   node D:\test-folder\.accept-guard\guard.mjs hold --as zcode --purpose accept-sprint -- \
+ *   node D:\test-folder\wallpaperengine-research\app\accept\guard\guard.mjs hold --as zcode --purpose accept-sprint -- \
  *     node app\accept\experiments\t373-window-thumbnail-probe.js
  *
  * 退出码：0 = 断言全过；1 = 有断言不成立（证据照常落盘，go/no-go 证据如实呈现）；

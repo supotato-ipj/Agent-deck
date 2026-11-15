@@ -20,7 +20,7 @@
  *   ③ 收尾零残留：临时桌面删除、注册表集合与基线相等。
  *
  * 用法（**必须经 accept-guard 托管**）：
- *   node D:\test-folder\.accept-guard\guard.mjs hold --as zcode --purpose selftest -- \
+ *   node D:\test-folder\wallpaperengine-research\app\accept\guard\guard.mjs hold --as zcode --purpose selftest -- \
  *     node app\accept\experiments\t407-move-window-probe.js
  *
  * 退出码：0 = 断言全过；1 = 有断言不成立；2 = 环境/时序问题。

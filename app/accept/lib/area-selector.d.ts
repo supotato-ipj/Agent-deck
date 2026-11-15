@@ -46,7 +46,7 @@ export declare interface SelectPlanRequest {
 export declare function selectPlan(req: SelectPlanRequest): AcceptPlan
 
 export declare interface GuardCommandOptions {
-  /** guard 命令前缀（如 node D:\test-folder\.accept-guard\guard.mjs） */
+  /** guard 命令前缀（如 node app/accept/guard/guard.mjs——工单495 仓内化） */
   guard?: string
   /** 持锁身份（--as） */
   holder?: string

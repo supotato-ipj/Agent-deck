@@ -32,7 +32,7 @@
  *   - COM 调用形态经 koffi vtable 直调（koffi.call + koffi.proto，koffi 2.16.3 实证）
  *
  * 用法（**必须经 accept-guard 托管**，禁裸跑——本机多检出共享同一验收槽）：
- *   node D:\test-folder\.accept-guard\guard.mjs hold --as zcode --purpose accept-sprint -- \
+ *   node D:\test-folder\wallpaperengine-research\app\accept\guard\guard.mjs hold --as zcode --purpose accept-sprint -- \
  *     node app\accept\experiments\t371-virtual-desktop-probe.js
  *
  * 退出码：0 = 断言全过；1 = 有断言不成立（证据照常落盘，go/no-go 证据如实呈现）；
