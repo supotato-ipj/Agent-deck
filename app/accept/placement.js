@@ -370,10 +370,13 @@ async function main() {
   try {
     fs.writeFileSync(EVENTS_FILE, '', 'utf8');
     removeFixtures();
-    // 组卡插件须在装（P4/P5 的对照面）；其余插件维持本机现状
+    // 电池依赖卡一律钉在装：doc-group-cards 是 P4/P5 的对照面，clock/weather 是
+    // P1/P3 前置的被拖对象（工单467）——用户生产停用任一张都不得让前置崩整条电池。
+    // 真被测面是摆位链路本身，卡片启停态不在被测面；段末 restoreConfig 原样恢复本机现状。
     patchConfig((cfg) => {
       cfg.plugins = cfg.plugins || {};
-      cfg.plugins.disabled = (cfg.plugins.disabled || []).filter((id) => id !== 'doc-group-cards');
+      const batteryCards = ['doc-group-cards', 'clock', 'weather'];
+      cfg.plugins.disabled = (cfg.plugins.disabled || []).filter((id) => !batteryCards.includes(id));
     });
     await launchPanel();
     await clearCovering();
