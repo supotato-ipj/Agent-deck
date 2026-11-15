@@ -934,11 +934,19 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
 
   // 骨架首显（boot-sequence 计划 skeleton-reveal 步）：skeleton 页面装载完成即显示——
   // 不等数据面首拍（桌面组件正处占位态，数据到达后原位填充）。
-  win.once('ready-to-show', () => {
+  // 双径 #497：ready-to-show 是单点依赖（transparent/hidden 窗的生态已知脆断——电池链
+  // 实证 GPU 栈未起时事件零发射、面板进程在窗永不现），故 did-finish-load 到达即走
+  // 同一条 reveal 闭包兜底。revealRan 闩保证只跑一次（restorer/cover 只能建一份），
+  // 两径谁先到谁兑现；正常态 ready-to-show 先到，兜底为 no-op。
+  let revealRan = false
+  const revealPanel = (why: string) => {
+    if (revealRan || win.isDestroyed()) return
+    revealRan = true
     win.showInactive()
     if (pinToBottom(win)) log?.append({ type: 'pin', reason: 'startup' })
     panelRevealed = true
     bootPhase('panel-visible')
+    if (why !== 'ready-to-show') log?.append({ type: 'panel-reveal-fallback', why })
     // 半开机延后的唤回随首显一并兑现：用户点击的可见反馈 = 面板此刻在场（记账补齐）
     for (const reason of deferredShowReasons.splice(0)) {
       log?.append({ type: 'panel-shown', reason: `${reason}@first-reveal` })
@@ -966,7 +974,12 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
     // 闸断（win32.setPinGate），防止热区离开/focus 兜底把面板亲手塞回壁纸之下。
     const cover = new DesktopCoverWatcher(win, log ?? undefined)
     win.on('closed', () => cover.dispose())
-  })
+  }
+  win.once('ready-to-show', () => revealPanel('ready-to-show'))
+  // 兜底径不设定时器（#467 绿轮实测电池在 did-finish-load 后 ~130ms 即查窗，兜底必须
+  // 同拍兑现）：did-finish-load 到达即 reveal——票面设计本意「skeleton 页面装载完成即显示」，
+  // ready-to-show 只是更早的第一拍触发器；两径谁先到谁兑现，revealRan 闩幂等。
+  win.webContents.on('did-finish-load', () => revealPanel('did-finish-load-fallback'))
   win.on('closed', () => tracker.dispose())
   // 兜底重钉（工单02）：面板永不激活，但键盘模式/系统交互理论上仍可能送来 focus 事件——
   // 探针实证前台/激活态下 HWND_BOTTOM 重钉依然生效，focus 即钉回，z 序永不破例。
