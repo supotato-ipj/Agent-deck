@@ -9,7 +9,7 @@
  *   ② 事件档里 taskbar-summon-strips 帧数（F2：第二次进收栏态要**再发一帧**）。
  *
  * 用法（**必须经 accept-guard 托管**，禁裸跑——本机多检出共享同一验收槽）：
- *   node D:\test-folder\.accept-guard\guard.mjs hold --as mcode --purpose accept-sprint -- \
+ *   node D:\test-folder\wallpaperengine-research\app\accept\guard\guard.mjs hold --as mcode --purpose accept-sprint -- \
  *     node app\accept\experiments\t249-retract-cycle-probe.js
  *
  * 退出码：0 = 两条断言全过；1 = 有断言不成立（打印取证）；2 = 环境/时序问题（本轮未取到证据）。

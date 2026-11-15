@@ -25,7 +25,7 @@
  *
  * 用法（**必须经 accept-guard 托管**，禁裸跑——SendInput 移动真实光标，本机多检出
  * 共享同一验收槽）：
- *   node D:\test-folder\.accept-guard\guard.mjs hold --as zcode --purpose selftest -- \
+ *   node D:\test-folder\wallpaperengine-research\app\accept\guard\guard.mjs hold --as zcode --purpose selftest -- \
  *     node app\accept\experiments\t407-title-drag-probe.js
  *
  * 退出码：0 = 断言全过；1 = 有断言不成立（证据照常打印）；2 = 环境/时序问题。

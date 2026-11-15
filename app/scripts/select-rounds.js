@@ -20,7 +20,7 @@
  *   --worktree           把未提交改动并进文件集
  *   --as <身份>          guard 持锁身份（默认取环境变量 ACCEPT_HOLDER，否则 agent）
  *   --purpose <用途>     guard 用途：selftest | accept-sprint（默认 selftest）
- *   --guard <路径>       guard.mjs 路径（默认取环境变量 ACCEPT_GUARD_HOME，其次 D:\test-folder\.accept-guard\guard.mjs）
+ *   --guard <路径>       guard.mjs 路径（默认仓内 app/accept/guard/guard.mjs，工单495 仓内化）
  *   --json               机读输出（计划 JSON + 命令行数组）
  */
 
@@ -31,7 +31,9 @@ const { loadManifest } = require('../accept/lib/report');
 
 const APP_DIR = path.resolve(__dirname, '..');
 const REPO_ROOT = path.resolve(APP_DIR, '..');
-const DEFAULT_GUARD = 'D:\\test-folder\\.accept-guard\\guard.mjs';
+// guard 仓内化（工单495）：源码住本仓库 app/accept/guard/，家目录（租约/配置）仍在本机
+// D:\test-folder\.accept-guard——此默认指仓内脚本，与家目录无关。
+const DEFAULT_GUARD = path.join(APP_DIR, 'accept', 'guard', 'guard.mjs');
 
 /** 参数解析：--key value 与 --key=value 都收 */
 function parseArgs(argv) {
@@ -69,11 +71,11 @@ function gitFiles(ref, includeWorktree) {
   return out;
 }
 
-/** guard 路径：显式参数 > 环境变量 ACCEPT_GUARD_HOME > 本机默认；返回值是可执行命令行前缀 */
+/** guard 路径：显式参数 > 仓内默认（家目录与源码分离后 ACCEPT_GUARD_HOME 只指家目录，
+ *  不再指脚本位置，故不再从它推导脚本路径）；返回值是可执行命令行前缀 */
 function resolveGuard(flag) {
   let p = null;
   if (flag && typeof flag === 'string') p = flag.trim();
-  else if (process.env.ACCEPT_GUARD_HOME) p = path.join(process.env.ACCEPT_GUARD_HOME, 'guard.mjs');
   else p = DEFAULT_GUARD;
   if (!p) return 'node guard.mjs';
   // 路径形态的 guard.mjs 前面补 node（Windows 下 .mjs 不可直接执行）

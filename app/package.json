@@ -22,6 +22,7 @@
     "accept:doc-group-cards": "npm run build && electron . --accept-doc-group-cards",
     "accept:placement": "npm run build && electron . --accept-placement",
     "accept:plan": "node scripts/select-rounds.js",
+    "guard:selftest": "node accept/guard/guard.mjs selftest",
     "cleanup:local": "node scripts/cleanup-local.js",
     "cleanup:notifyicons": "node scripts/cleanup-notifyicons.js",
     "dev:panel": "npm run build && electron . --panel",
@@ -43,5 +44,9 @@
     "electron": "44.4.3",
     "typescript": "^5.6.0",
     "vitest": "^3.2.0"
+  },
+  "allowScripts": {
+    "koffi@2.16.3": true,
+    "esbuild@0.28.2": true
   }
 }
