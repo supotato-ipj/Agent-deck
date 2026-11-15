@@ -6,7 +6,7 @@ import path from 'node:path'
 import { defaultAgentDesktop, defaultAppearance, defaultAutostart, defaultConversation, defaultDesktopLayout, defaultPanelGeometry, defaultPlugins, defaultSearchConfig, defaultTaskbar, defaultTools, defaultWeather, loadConfig, resolveConfigFile } from './config'
 import { packagePermissionSlice } from './plugins/limits'
 import { createPanelKernel } from './panel-kernel'
-import { KERNEL_START_BOUND_MS, PANEL_DATA_BOUND_MS, WORKSPACE_START_BOUND_MS, boundWait } from './boot-sequence'
+import { KERNEL_START_BOUND_MS, PANEL_DATA_BOUND_MS, PANEL_REVEAL_FALLBACK_MS, WORKSPACE_START_BOUND_MS, boundWait } from './boot-sequence'
 import { applyAutostart, desiredShortcut } from './autostart'
 import { legacyUsageDir, migrateUsageLog } from './usage/migrate'
 import { HotzoneTracker } from './hotzone'
@@ -934,11 +934,19 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
 
   // 骨架首显（boot-sequence 计划 skeleton-reveal 步）：skeleton 页面装载完成即显示——
   // 不等数据面首拍（桌面组件正处占位态，数据到达后原位填充）。
-  win.once('ready-to-show', () => {
+  // 主径 ready-to-show；兜底径 #497：ready-to-show 是单点依赖（transparent/hidden 窗的
+  // 生态已知脆断——电池链实证 GPU 栈未起时事件零发射、面板进程在窗永不现），故
+  // did-finish-load 后上界定时器检查未首显即强制走同一条 reveal 闭包。闩保证只跑一次
+  // （restorer/cover 只能建一份），两径谁先到谁兑现。
+  let revealRan = false
+  const revealPanel = (why: string) => {
+    if (revealRan || win.isDestroyed()) return
+    revealRan = true
     win.showInactive()
     if (pinToBottom(win)) log?.append({ type: 'pin', reason: 'startup' })
     panelRevealed = true
     bootPhase('panel-visible')
+    if (why !== 'ready-to-show') log?.append({ type: 'panel-reveal-fallback', why })
     // 半开机延后的唤回随首显一并兑现：用户点击的可见反馈 = 面板此刻在场（记账补齐）
     for (const reason of deferredShowReasons.splice(0)) {
       log?.append({ type: 'panel-shown', reason: `${reason}@first-reveal` })
@@ -966,6 +974,10 @@ async function bootPanel(options: { traySpike?: boolean } = {}): Promise<void> {
     // 闸断（win32.setPinGate），防止热区离开/focus 兜底把面板亲手塞回壁纸之下。
     const cover = new DesktopCoverWatcher(win, log ?? undefined)
     win.on('closed', () => cover.dispose())
+  }
+  win.once('ready-to-show', () => revealPanel('ready-to-show'))
+  win.webContents.on('did-finish-load', () => {
+    setTimeout(() => revealPanel('did-finish-load-timeout'), PANEL_REVEAL_FALLBACK_MS)
   })
   win.on('closed', () => tracker.dispose())
   // 兜底重钉（工单02）：面板永不激活，但键盘模式/系统交互理论上仍可能送来 focus 事件——

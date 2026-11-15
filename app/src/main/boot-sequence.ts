@@ -25,6 +25,9 @@ export const PANEL_DATA_BOUND_MS = 15_000
 /** 桌面工作区首轮对账上界：FFI 直读热态毫秒级、reg.exe 兜底百毫秒级；开机窗口 COM/注册表
  * 冷态放大留裕量。超时降级：先按当前模式起 Agent 服务族，工作区迟到对账完成后补拍激活。 */
 export const WORKSPACE_START_BOUND_MS = 5_000
+/** 骨架首显兜底上界（工单497）：ready-to-show 单点脆断时 did-finish-load 后强制 reveal——
+ * 透明骨架首显设计下早显无白闪风险；正常态 ready-to-show 先到、兜底为 no-op。 */
+export const PANEL_REVEAL_FALLBACK_MS = 2_500
 
 /** #473 相位名（常驻事件日志 boot-phase 族；验收电池 P473 段 EXPECTED_PHASES 同源契约） */
 export type BootPhaseName =
