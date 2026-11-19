@@ -93,6 +93,7 @@ function realSampleRoots(): Record<string, Record<string, () => unknown>> {
   const registry = requireLib('registry')
   const trayMachineState = requireLib('tray-machine-state')
   const probeResidue = requireLib('probe-residue')
+  const fixtureClose = requireLib('fixture-close')
   return {
     'area-selector': {
       selectPlan: () => (areaSelector.selectPlan as (req: unknown) => unknown)({ changedFiles: [], manifest: null }),
@@ -139,6 +140,10 @@ function realSampleRoots(): Record<string, Record<string, () => unknown>> {
     },
     'probe-residue': {
       stripBatteryResidue: () => (probeResidue.stripBatteryResidue as (s: unknown) => unknown)({ pinned: [], recommended: [], excluded: [] }),
+    },
+    'fixture-close': {
+      // 工单486：清扫工厂样本根——仅构造（deps 只绑定不调用），不触真实窗/进程
+      createFixtureClose: () => (fixtureClose.createFixtureClose as (d?: unknown) => unknown)({ graceMs: 1, killWaitMs: 1 }),
     },
   }
 }

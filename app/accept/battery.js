@@ -14,6 +14,7 @@ const http = require('http');
 const net = require('net');
 const { spawn, spawnSync } = require('child_process');
 const win32 = require('./lib/win32');
+const { fixtureClose } = require('./lib/fixture-close');
 const { Report, parseAcceptScope } = require('./lib/report');
 const { cdpPortFor } = require('./lib/registry');
 const { createPanelHandle, findPanelWindows, classifyPreflight, classifyUserWindowActivity, classifyTrayMachineState, PREFLIGHT_SHELL_CLASSES, PREFLIGHT_OWN_TITLES } = require('./lib/panel-control');
@@ -641,9 +642,13 @@ async function launchNotepad(rep, rect) {
   }
   let kind = 'notepad';
   if (!hwnd) throw new Error('8s 内未出现记事本窗口（电池需要真实普通应用窗）');
+  // #486：宿主 pid 启动期入账——Win11 打包版记事本存根/宿主分裂（窗口不属于启动进程），
+  // 清扫兜底强杀只认这个 pid；等窗销毁后再反查就来不及了。
+  let hostPid = 0;
+  try { hostPid = win32.threadIdOf(Number(hwnd)).pid; } catch { /* 窗刚销毁 */ }
   win32.SetWindowPos(hwnd, 0, rect.x, rect.y, rect.w, rect.h, win32.SWP_NOZORDER | win32.SWP_NOACTIVATE);
   await sleep(300);
-  return { hwnd, kind, child: np };
+  return { hwnd, kind, child: np, hostPid };
 }
 /** 临点现取矩形（工单59 真机首跑教训）：文档区名序随后台使用频次落定会重排
  * （工单05，~1s 内动），一次 settle 抓的快照隔几秒再点就点空。落点一律现取。 */
@@ -5808,9 +5813,11 @@ async function runSegments() {
         // 本来就在最外层 finally 里要关）。它按 launchNotepad 的 rect 铺在 phys(1000,200)
         // 1400x900，正好压住右上角会话行 → 落点被遮挡、点击根本到不了面板。
         // 只关这一个已记录句柄，绝不按类名遍历全机（用户自己的记事本一律不碰）。
+        // #486：清扫收口 fixtureClose.close——WM_CLOSE 失灵时（模态框/关停卡死/Store 更新改
+        // 行为）按启动期入账的宿主 pid 强杀兜底，child.kill()（存根）永远够不着宿主。
         if (notepad) {
-          try { w32.PostMessageW(notepad.hwnd, WM_CLOSE, 0, 0); } catch { /* 尽力 */ }
-          try { notepad.child.kill(); } catch { /* 尽力 */ }
+          const closed9 = await fixtureClose.close(notepad);
+          rep.note(`对照记事本清场：${closed9.closed ? (closed9.forced ? 'WM_CLOSE 失灵→强杀兜底' : '优雅关闭') : '未净（轮末零存活断言会接手）'}（宿主pid=${closed9.hostPid || 'n/a'}）`);
           await sleep(700);
         }
         // b0. 工具→exe 映射的启动目标存在性（只读核对，不启动任何真实工具）：
@@ -6745,9 +6752,12 @@ async function runSegments() {
     try { w32.tapKeys([VK_ESCAPE]); } catch { /* 尽力收起残留菜单 */ }
     await sleep(300);
     if (notepad) {
-      try { w32.PostMessageW(notepad.hwnd, WM_CLOSE, 0, 0); } catch { /* 尽力 */ }
-      try { notepad.child.kill(); } catch { /* 尽力 */ }
-      await sleep(400);
+      // #486 零存活断言：夹具窗与宿主进程都不许活着走出电池（P26 清场自检同口径）。
+      // fixtureClose.close 先走 WM_CLOSE → 5s 有界等 → 宿主 pid 强杀兜底；强杀后仍存活判 FAIL。
+      const closedF = await fixtureClose.close(notepad);
+      closedF.closed
+        ? rep.note(`夹具记事本清场核验：零存活（${closedF.forced ? 'WM_CLOSE 失灵→强杀兜底' : '优雅关闭'}，宿主pid=${closedF.hostPid || 'n/a'}${closedF.notes.length ? '；' + closedF.notes.join('；') : ''}）`)
+        : rep.fail(`夹具记事本清场核验失败：清扫后仍存活（窗=${closedF.windowStill} 宿主pid=${closedF.hostPid || 'n/a'} 进程存活=${closedF.hostAlive}）——#486 形态复发，需人工 taskkill`);
     }
     // P7S 探针目录：记事本（探针标签所在窗）已关、句柄释放，现在删得掉
     if (searchProbeDir) {

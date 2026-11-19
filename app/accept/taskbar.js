@@ -69,6 +69,7 @@ const path = require('path');
 const fs = require('fs');
 const { spawn, spawnSync } = require('child_process');
 const win32 = require('./lib/win32');
+const { fixtureClose, launchAppFixture, attachFixtureWindow } = require('./lib/fixture-close');
 const { Report } = require('./lib/report');
 // config 读写/还原共通 helper（工单124）：缺位读不抛、缺位落桩、三态还原——四电池单点维护
 const { readConfigRaw, patchTaskbar, restoreConfig, CONFIG_FILE } = require('./lib/battery-config');
@@ -1162,8 +1163,12 @@ async function main() {
         const trayReady13 = sizes13.tray.some((t) => t.nat > 0);
         if (sizes13.cell && trayReady13) break;
         // 栏上确无应用格 → 铺一枚 notepad 探针（有则直接用——断言的是格位/图标尺寸，与应用身份无关）
+        // #486：launchAppFixture 记 preSet+追认新窗宿主 pid（打包版记事本存根/宿主分裂，
+        // 只杀 spawn pid=杀已死的存根，宿主每轮全漏）
         if (!sizes13.cell && !notepad13 && i >= 2) {
-          notepad13 = spawn('notepad.exe', [], { stdio: 'ignore' });
+          notepad13 = await launchAppFixture({ timeoutMs: 300 });
+        } else if (notepad13 && !notepad13.hwnd) {
+          await attachFixtureWindow(notepad13, { timeoutMs: 0 });
         }
         await sleep(500);
       }
@@ -1191,7 +1196,10 @@ async function main() {
           + ` 几何互证(格位=${geoAppsOk13}/托盘=${geoTrayOk13}) 几何帧=${JSON.stringify(geo13 && { apps: geo13.apps, trayIcons: geo13.trayIcons })}`);
       }
     } finally {
-      if (notepad13) spawnSync('taskkill', ['/PID', String(notepad13.pid), '/T', '/F'], { stdio: 'ignore' });
+      if (notepad13) {
+        const c13 = await fixtureClose.close(notepad13);
+        if (!c13.closed) rep.fail(`P13 notepad 探针清场未净：清扫后仍存活（窗=${c13.windowStill} 宿主pid=${c13.hostPid || 'n/a'} 进程存活=${c13.hostAlive}）——#486 形态，需人工 taskkill`);
+      }
     }
 
     // P15 栏分组布局重排（工单159；工单192 推荐组独立 pill 随迁重定界）：三组新布局落位。
@@ -1211,11 +1219,13 @@ async function main() {
     try {
       let geom14 = latestGeometry(null);
       if (!geom14 || !geom14.apps || geom14.apps.length === 0) {
-        notepad14 = spawn('notepad.exe', [], { stdio: 'ignore' });
+        // #486：launchAppFixture 记 preSet+追认宿主 pid（只杀 spawn pid=杀已死存根，同 P13）
+        notepad14 = await launchAppFixture({ timeoutMs: 300 });
         const deadline14 = Date.now() + 12000;
         while (Date.now() < deadline14) {
           geom14 = latestGeometry(null);
           if (geom14 && geom14.apps && geom14.apps.length > 0) break;
+          if (notepad14 && !notepad14.hwnd) await attachFixtureWindow(notepad14, { timeoutMs: 0 });
           await sleep(300);
         }
       }
@@ -1281,7 +1291,10 @@ async function main() {
           + ` 帧=${JSON.stringify({ startPill: g0.startPill, appsPill: g0.appsPill, rightPill: g0.rightPill, sliver: g0.sliver })}`);
       }
     } finally {
-      if (notepad14) spawnSync('taskkill', ['/PID', String(notepad14.pid), '/T', '/F'], { stdio: 'ignore' });
+      if (notepad14) {
+        const c14 = await fixtureClose.close(notepad14);
+        if (!c14.closed) rep.fail(`P15 notepad 探针清场未净：清扫后仍存活（窗=${c14.windowStill} 宿主pid=${c14.hostPid || 'n/a'} 进程存活=${c14.hostAlive}）——#486 形态，需人工 taskkill`);
+      }
     }
 
     // P15B 应用+推荐组合中心锚定（工单380，spec #369 决策 17；取代 ADR-0013 决策 2 的
@@ -1322,11 +1335,13 @@ async function main() {
       // 应用格保底探针（同 P15：栏上无应用时 notepad 1–2s 上栏）
       let geom15b = latestGeometry(null);
       if (!geom15b || !geom15b.apps || geom15b.apps.length === 0) {
-        notepad15b = spawn('notepad.exe', [], { stdio: 'ignore' });
+        // #486：launchAppFixture 记 preSet+追认宿主 pid（只杀 spawn pid=杀已死存根，同 P13）
+        notepad15b = await launchAppFixture({ timeoutMs: 300 });
         const deadline15b = Date.now() + 12000;
         while (Date.now() < deadline15b) {
           geom15b = latestGeometry(null);
           if (geom15b && geom15b.apps && geom15b.apps.length > 0) break;
+          if (notepad15b && !notepad15b.hwnd) await attachFixtureWindow(notepad15b, { timeoutMs: 0 });
           await sleep(300);
         }
       }
@@ -1435,11 +1450,13 @@ async function main() {
       // 臂4 图标增多向两侧对称扩张：第二应用探针（mspaint 独立 exe 不与 notepad 合一）
       const wBefore = (latestGeometry(null) || gA).appsPill.w;
       const xBefore = (latestGeometry(null) || gA).appsPill.x;
-      mspaint15b = spawn('mspaint.exe', [], { stdio: 'ignore' });
+      // #486：mspaint 同为 Store 别名应用（同款存根/宿主分裂），launchAppFixture 记账
+      mspaint15b = await launchAppFixture({ exe: 'mspaint.exe', timeoutMs: 300 });
       let gGrow = null;
       const sinceGrow15b = Date.now();
       for (let i = 0; i < 40 && !gGrow; i++) {
         await sleep(250);
+        if (mspaint15b && !mspaint15b.hwnd) await attachFixtureWindow(mspaint15b, { timeoutMs: 0 });
         const cand = latestGeometry(null, { since: sinceGrow15b });
         if (cand && cand.apps && cand.apps.length > (gA.apps || []).length
           && cand.appsPill.w > wBefore + 20) gGrow = cand;
@@ -1467,8 +1484,12 @@ async function main() {
       }
     } finally {
       // 痕迹四处复原（各臂已就地还原，此处兜底幂等）：探针进程、推荐位、托盘档位
-      if (mspaint15b) spawnSync('taskkill', ['/PID', String(mspaint15b.pid), '/T', '/F'], { stdio: 'ignore' });
-      if (notepad15b) spawnSync('taskkill', ['/PID', String(notepad15b.pid), '/T', '/F'], { stdio: 'ignore' });
+      // #486：fixtureClose.close 收口——杀已死的 spawn pid 是空放，按追认到的宿主 pid 强杀兜底
+      for (const [tag, fx] of [['mspaint', mspaint15b], ['notepad', notepad15b]]) {
+        if (!fx) continue;
+        const c15b = await fixtureClose.close(fx);
+        if (!c15b.closed) rep.fail(`P15B ${tag} 探针清场未净：清扫后仍存活（窗=${c15b.windowStill} 宿主pid=${c15b.hostPid || 'n/a'} 进程存活=${c15b.hostAlive}）——#486 形态，需人工 taskkill`);
+      }
       if (recExe15b) {
         try { await cdpEval(`window.deck.bridge.invoke('taskbar/rec-restore', { exe: ${JSON.stringify(recExe15b)} })`, TASKBAR_TITLE); } catch { /* 条带已不在场 */ }
       }
