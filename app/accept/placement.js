@@ -647,16 +647,21 @@ async function main() {
       const clampOk = expanded && expanded.x >= MARGIN && expanded.y >= MARGIN
         && expanded.x + expanded.w <= geo.inner.w - MARGIN && expanded.y + expanded.h <= geo.inner.h - MARGIN - BAND;
       const faded = others.length > 0 && others.every((c) => c.faded);
-      const hzExp = tape.latest('hotzones', null, { since: tExpand });
+      // #470：旧写法 tape.latest 是零等待快照读且不分申报窗——热区事件由面板/任务栏条带等
+      // 多窗共账落同一事件日志，任务栏 pill 拍（红轮占 44% 拍数）插队即顶掉桌面的展开申报
+      // → hz=undefined（replay 判定 landscape：红轮 41/41 全红、绿轮 r4 12/51 近红窗）。
+      // 改 wait+谓词：等「含 dgc-txt 且≈展开矩形」的首拍，他窗/全窗拍谓词天然跳过；
+      // 超时=4s 内热区未跟上（诚实红——stall 发作轮的迟到申报就该暴露，发作面归 #503 跟踪）。
+      const hzExp = await tape.wait('hotzones', (e) => expanded && (e.rects || []).some((r) => r.id === 'dgc-txt'
+        && Math.abs(r.x - expanded.x) <= 1.5 && Math.abs(r.y - expanded.y) <= 1.5
+        && Math.abs(r.w - expanded.w) <= 1.5 && Math.abs(r.h - expanded.h) <= 1.5), { since: tExpand, timeoutMs: 4000 });
       const hzRect = hzExp && (hzExp.rects || []).find((r) => r.id === 'dgc-txt');
-      const hzOk = hzRect && expanded && Math.abs(hzRect.x - expanded.x) <= 1.5 && Math.abs(hzRect.y - expanded.y) <= 1.5
-        && Math.abs(hzRect.w - expanded.w) <= 1.5 && Math.abs(hzRect.h - expanded.h) <= 1.5;
       expanded && centerKeep && clampOk && faded
         ? rep.pass(`展开为临时模态：640×980 保中心（偏差 ${Math.abs((expanded.x + expanded.w / 2) - base.x).toFixed(1)}px）且夹取进可用区，${others.length} 张邻卡淡出`)
         : rep.fail(`展开异常：expanded=${JSON.stringify(expanded && { x: expanded.x, y: expanded.y, w: expanded.w, h: expanded.h })} center=${centerKeep} clamp=${clampOk} faded=${faded}`);
-      hzOk
+      hzRect
         ? rep.pass(`展开后热区即时重申报：dgc-txt 热区 = DOM 矩形（${JSON.stringify(hzRect)}）`)
-        : rep.fail(`展开后热区未跟上：hz=${JSON.stringify(hzRect)} dom=${JSON.stringify(expanded && { x: expanded.x, y: expanded.y, w: expanded.w, h: expanded.h })}`);
+        : rep.fail(`展开后热区未跟上（4s 内无「dgc-txt≈展开矩形」申报拍）：dom=${JSON.stringify(expanded && { x: expanded.x, y: expanded.y, w: expanded.w, h: expanded.h })}`);
 
       // 展开卡仍可长按拖动（基准格点位移；展开态不写存储位置，写的是折叠基准位）
       const tDragExpanded = Date.now();
