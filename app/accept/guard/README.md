@@ -19,6 +19,7 @@
 | 日常自测 | 空挡随手跑的一轮验证，排队让位于验收冲刺 |
 | 验收入口 | 所有 electron `--accept*` 模式：`npm run accept` / `accept:tray` / `accept:taskbar` |
 | 挂死接管 | 持锁方心跳停止超过 TTL 后，等待方清掉残留进程并接管验收槽 |
+| 死头收割 | 等待队列里 holder 进程已不存在且入队陈旧超阈的条目，在下次拿槽竞争时被收走——否则死条目永居队头、sorted-head 规则堵死全部候补轮（工单 #488） |
 | 任务栏还原兜底 | 拿槽/释放槽两侧各跑一次的 `restoreTaskbarCmd`：把电池强杀面板可能留下的 SW_HIDE 原生任务栏与 appbar 落盘账还原给系统（工单 #495） |
 
 ## 用法
@@ -30,6 +31,8 @@ node D:\test-folder\wallpaperengine-research\app\accept\guard\guard.mjs hold --a
 ```
 
 一条命令完成全部生命周期：**排队 → 拿槽 → 清场（优雅径 WM_CLOSE → 有界等待 → 强杀兜底 → 任务栏还原兜底）→ 弹系统通知 → 托管验收命令并驻留心跳 → 命令退出前任务栏还原兜底 → 自动释放**（正常/异常退出都释放）。退出码透传验收命令的退出码。清场输出含 `kill-mode=graceful|forced`（graceful=面板自发退出/无残留；forced=优雅径后有残留被强杀，附残留 PID 清单）——工单 #429。
+
+验收命令长跑超 `cmdWatchMs`（默认 10 分钟）时 guard 周期性输出「看护提示」告警（不自动杀，正常验收可能长跑）——若属挂死形态（见下节「输出通道纪律」），按告警指引人工裁决——工单 #488。
 
 ### 看状态（抢槽前必看）
 
@@ -63,15 +66,20 @@ node D:\test-folder\wallpaperengine-research\app\accept\guard\guard.mjs selftest
 # 或 npm run guard:selftest（app/ 下）
 ```
 
-在临时沙箱守卫目录上跑 10 项行为断言（互斥、排队优先、挂死接管、超时、释放、no-op 触达序等），永不碰真实租约与真实面板。改完 guard 必跑。
+在临时沙箱守卫目录上跑 12 项行为断言（互斥、排队优先、挂死接管、超时、释放、no-op 触达序、死头收割、看护告警等），永不碰真实租约与真实面板。改完 guard 必跑。
 
 ## 调度规则
 
 1. **互斥**：整机一把锁。vitest / typecheck / build / 证据推送不占槽，随意并行。
-2. **排队**：FCFS 为基础；同队等待时 `accept-sprint` 优先于 `selftest`，同类按入队时间。槽空闲但队列非空时，新来者必须入队，不得越过队头。
+2. **排队**：FCFS 为基础；同队等待时 `accept-sprint` 优先于 `selftest`，同类按入队时间。槽空闲但队列非空时，新来者必须入队，不得越过队头。死头收割：队列条目记录 holder PID，拿槽竞争时「PID 已不存在且入队陈旧超 `queueStaleMs`」的条目被收走，不再堵死候补轮（工单 #488；判据保守——只看进程生死不看轮次接手状态，活轮次短暂未接手的自愈形态不会被误收，PID 复用只会漏收）。
 3. **不抢占**：正常运行的验收绝不被打断。仅当心跳停止超过 TTL（默认 3 分钟，心跳 30 秒）才判挂死接管；接管时自动清残留 electron 进程。
 4. **等待上限**：默认 30 分钟，超时以退出码 3 结束并输出裁决指引——等待方应转做不占主机的活，或请用户裁决。
 5. **知情与净桌**：拿槽时四步——先优雅径（对枚举面板进程发 WM_CLOSE / `--panel-quit` 信使，走既有退出链注销托盘图标后自行退出）、有界等待（默认 5s 硬预算、500ms 轮询、PID 全消失提前出）、残留者强杀兜底、**任务栏还原兜底**（工单 #495）——再弹系统通知。释放槽时（验收命令退出后、清租约前）**再兜一次任务栏还原**。验收期间用户手动拉起的普通面板会被电池面板子进程的单实例锁自然弹退（`--panel-accept` 等绕锁模式除外，勿在他人持锁期间使用）。
+
+## 输出通道纪律（工单 #488）
+
+- **hold 的输出勿接可能停摆的管道消费方**（`tail` / `head` 等外层停摆或慢消费的形态）：验收命令 stdio inherit，外层管道缓冲写满后命令卡死在写上、hold 等不到命令退出——且心跳仍在跳（**活心跳假活**），TTL 挂死接管判据失效、租约无人能自动接走。需要看流时改用落盘重定向（`> hold.log`）。看护告警（`cmdWatchMs`）就是给这种形态兜底的观察位。
+- **含空格的命令路径**：guard 对含空格的 token 自动补引号（工单 #488），`C:\Program Files\...` 形态可直接用；cmd 元字符（`& | < > ^ %`）仍不经转义，此类参数请用脚本文件包装。
 
 ## 为什么需要任务栏还原兜底（工单 #495）
 
@@ -85,6 +93,8 @@ node D:\test-folder\wallpaperengine-research\app\accept\guard\guard.mjs selftest
 | `ttlMs` | 180000 | 心跳停止多久判挂死（= 6 次失联） |
 | `maxWaitMs` | 1800000 | 排队最长等待，超时退出码 3 |
 | `pollMs` | 3000 | 排队轮询间隔 |
+| `queueStaleMs` | 60000 | 队列死条目收割的陈旧度阈值：holder PID 已不存在且入队陈旧超过此值的条目在下次拿槽竞争时被收走（工单 #488）；阈值须远大于活轮次短暂未接手的自愈形态 |
+| `cmdWatchMs` | 600000 | 验收命令看护告警间隔：命令运行超过此值仍未退出则周期性告警提示人工裁决，不自动杀；置 0 禁用（工单 #488） |
 | `panelPathPattern` | `D:\test-folder\wallpaperengine-research*` | 面板进程识别的可执行路径模式 |
 | `gracefulPanelsCmd` | PowerShell 枚举 + taskkill（不带 /F，发 WM_CLOSE） | 清场第一步的优雅径命令，`{pattern}` 注入路径模式（工单 #429；本机 config.json 已换 `--panel-quit` 信使径，工单 #431） |
 | `gracefulWaitMs` | 5000 | 优雅径后的有界等待硬预算（毫秒），枚举 PID 全消失即提前出，轮询步长固定 500ms（工单 #429） |
@@ -98,7 +108,7 @@ node D:\test-folder\wallpaperengine-research\app\accept\guard\guard.mjs selftest
 
 - 零 npm 依赖（Node 内置模块），guard 不得依赖任一检出的 `node_modules`（默认 restoreTaskbarCmd 是命令模板调用主检出产物，不是依赖）。
 - 家目录与源码位置分离：源码在仓库，家目录固定 `D:\test-folder\.accept-guard`；selftest 子进程拉 `SCRIPT_PATH`（`import.meta.url`），不再从家目录找 guard.mjs。
-- 租约读改写用独占创建的 `guard.lock` 哨兵串行化，哨兵超 10s 视为崩溃残留自愈；状态文件 tmp-rename 原子写。
-- 挂死判定只看心跳时间戳，不做基于 PID 的抢先判定（PID 复用风险）。
+- 租约读改写用独占创建的 `guard.lock` 哨兵串行化，哨兵超 10s 视为崩溃残留自愈；状态文件 tmp-rename 原子写（rename 撞并发读句柄的偶发 EPERM 用短重试吃掉窄窗，失败路径清 tmp 残留——工单 #488）。
+- 挂死判定只看心跳时间戳，不做基于 PID 的抢先判定（PID 复用风险）。队列死条目收割是另一面（工单 #488）：判据为「PID 存活 + 陈旧度」双条件，只用于清死头、不动活租约，PID 复用只会漏收（保守方向）。
 - 唯一测试接缝 = CLI 边界；主机效果（优雅径/强杀清场/任务栏还原/通知）命令化，沙箱配置替换为写标记文件的 no-op（优雅等待预算设短值防真等）。
 - 规格见 Agent-deck#63（调度）、Agent-deck#495（仓内化 + 还原兜底）。
