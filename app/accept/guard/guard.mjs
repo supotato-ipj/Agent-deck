@@ -42,6 +42,13 @@ const DEFAULT_CONFIG = {
   ttlMs: 180_000,
   maxWaitMs: 1_800_000,
   pollMs: 3_000,
+  // 队列死条目收割的陈旧度阈值（工单 #488）：holder 进程已不存在且入队陈旧超过此值的
+  // 队列条目视为死头收走，不再永久占据 sorted-head 堵死候补轮。阈值须远大于活轮次
+  // 短暂未接手的自愈形态（#482 反向误诊教训）。
+  queueStaleMs: 60_000,
+  // 验收命令看护告警间隔（工单 #488）：hold 托管的命令运行超过此值仍未退出则告警提示
+  // 人工裁决（不自动杀——正常验收可能长跑）；置 0 禁用。
+  cmdWatchMs: 600_000,
   panelPathPattern: 'D:\\test-folder\\wallpaperengine-research*',
   gracefulPanelsCmd:
     "powershell -NoProfile -Command \"Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'electron.exe' -and $_.ExecutablePath -like '{pattern}' } | ForEach-Object { Write-Output ('graceful ' + $_.ProcessId + ' ' + $_.ExecutablePath); taskkill /PID $_.ProcessId }\"",
@@ -113,6 +120,12 @@ function loadConfig() {
   if (typeof cfg.gracefulWaitMs !== 'number' || !(cfg.gracefulWaitMs >= 0)) {
     die(EXIT_USAGE, 'config.json 的 gracefulWaitMs 必须为非负数（毫秒）');
   }
+  if (!(cfg.queueStaleMs > 0)) {
+    die(EXIT_USAGE, 'config.json 的 queueStaleMs 必须为正数（毫秒；死头收割的保守性靠它兜底，不做 0）');
+  }
+  if (typeof cfg.cmdWatchMs !== 'number' || !(cfg.cmdWatchMs >= 0)) {
+    die(EXIT_USAGE, 'config.json 的 cmdWatchMs 必须为非负数（毫秒，0=禁用看护告警）');
+  }
   return cfg;
 }
 
@@ -124,10 +137,32 @@ function readJson(p, fallback) {
   }
 }
 
+// 同步短眠（writeJsonAtomic 的 EPERM 重试用）：guard 是 CLI，进程内阻塞百毫秒级可接受。
+const sleepSync = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+
+// 原子写（工单 #488 加固）：Windows 上 renameSync 撞上并发读句柄（无锁 readState /
+// 杀软与索引服务的扫描）会偶发 EPERM。窄窗竞争用短重试吃掉（3 次共 100ms）；重试耗尽
+// 仍失败则如实抛出（真长锁形态本就该报错），finally 清掉 tmp 残留——此前的失败路径
+// 会把 guard.json.<pid>.tmp 留在家目录（当日家目录 4 个 .tmp 残留的同源物证）。
 function writeJsonAtomic(p, obj) {
   const tmp = `${p}.${process.pid}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify(obj, null, 2) + '\n', 'utf8');
-  fs.renameSync(tmp, p);
+  try {
+    fs.writeFileSync(tmp, JSON.stringify(obj, null, 2) + '\n', 'utf8');
+    for (let attempt = 0; ; attempt++) {
+      try {
+        fs.renameSync(tmp, p);
+        return;
+      } catch (e) {
+        if (e.code === 'EPERM' && attempt < 2) {
+          sleepSync(50);
+          continue;
+        }
+        throw e;
+      }
+    }
+  } finally {
+    try { fs.unlinkSync(tmp); } catch { /* rename 成功后 tmp 已不在 */ }
+  }
 }
 
 function readState() {
@@ -198,6 +233,26 @@ function sortedQueue(queue) {
   return [...queue].sort((a, b) => purposeRank(a.purpose) - purposeRank(b.purpose) || a.enqueuedMs - b.enqueuedMs);
 }
 
+// 队列死条目收割（工单 #488）：holder 进程已不存在且入队陈旧度超 queueStaleMs 的条目
+// 视为死头收走——此前死条目永居队头，sorted-head 规则堵死全部候补轮（当日 7 实锤）。
+// 保守性：双判据「pid 存活 + 陈旧度」，只看进程生死、不看轮次接手状态，活轮次短暂
+// 未接手的自愈形态不会被误收（#482 反向误诊教训）；pid 复用只会把死条目错判成活条目
+// =漏收，也在保守方向。无 pid 字段的旧版条目按陈旧度单判据收割。须在持互斥的前提下调用。
+function pruneQueue(st, cfg) {
+  if (!st.queue.length) return;
+  const now = Date.now();
+  const survivors = [];
+  for (const e of st.queue) {
+    const stale = now - (e.enqueuedMs || 0) > cfg.queueStaleMs;
+    if (stale && !pidAlive(e.pid)) {
+      warn(`收割队列死条目：${e.name}｜用途 ${e.purpose}｜holder PID ${e.pid ?? '未记录'}｜入队于 ${e.enqueuedAt}（陈旧 ${humanDur(now - (e.enqueuedMs || 0))}，超阈 ${humanDur(cfg.queueStaleMs)}）`);
+      continue;
+    }
+    survivors.push(e);
+  }
+  st.queue = survivors;
+}
+
 // 在持有互斥的前提下尝试拿槽；成功则改写 st 并返回 true。
 // 规则：槽空闲（或租约心跳过期判挂死可接管），且我是排序队列的队头（队列为空时自然满足）。
 function tryTakeSlot(st, me, cfg) {
@@ -231,6 +286,18 @@ function tryTakeSlot(st, me, cfg) {
 }
 
 // ---------- 主机效果（清面板/通知/任务栏还原） ----------
+
+// shell:true 拼接不转义（Node DEP0190 同款语义）：含空格的 token 会被 cmd.exe 从空格处
+// 拆断（工单 #488：C:\Program Files\... → 'C:\Program' is not recognized，#475/#481/#482
+// 各中招过）。对含空白且未自带引号包裹的 token 补双引号；已引号包裹的元素（调用方自带）
+// 原样保留，避免双重引号。只处理空白——cmd 元字符（&|^><%）的超面转义不在此刀范围。
+function quoteForCmd(token) {
+  if (typeof token !== 'string') return token;
+  if (/\s/.test(token) && !(token.startsWith('"') && token.endsWith('"'))) {
+    return `"${token}"`;
+  }
+  return token;
+}
 
 function runEffect(cmdTemplate, placeholders) {
   let cmd = cmdTemplate || '';
@@ -356,6 +423,7 @@ async function cmdHold(flags, cmdPart) {
     purpose,
     note,
     checkout: path.basename(process.cwd()),
+    pid: process.pid, // 死头收割判据（工单 #488）：条目必须能对账到 holder 进程
     enqueuedMs: Date.now(),
     enqueuedAt: localIso(),
   };
@@ -366,12 +434,18 @@ async function cmdHold(flags, cmdPart) {
   await withMutex(() => {
     const st = readState();
     st.queue.push(me);
+    pruneQueue(st, cfg);
     acquired = tryTakeSlot(st, me, cfg);
     writeJsonAtomic(GUARD_JSON, st);
   });
   if (!acquired) {
-    const holderDesc = describeSlot(readState().slot);
-    log(`验收槽被占：${holderDesc}。已入队（${purpose}），最长等待 ${humanDur(cfg.maxWaitMs)}…`);
+    const st = readState();
+    const ahead = sortedQueue(st.queue).find((e) => e.id !== me.id);
+    // 如实区分两种被堵形态（工单 #488）：槽被真持锁方占着 vs 槽空闲但队列有人排在前面
+    const reason = st.slot
+      ? `验收槽被占：${describeSlot(st.slot)}`
+      : `槽空闲但队列非空（队头 ${ahead ? `${ahead.name}｜PID ${ahead.pid ?? '未记录'}${pidAlive(ahead.pid) ? '' : '（进程已不存在）'}` : '?'}）`;
+    log(`${reason}。已入队（${purpose}），最长等待 ${humanDur(cfg.maxWaitMs)}…`);
   }
 
   const deadline = Date.now() + cfg.maxWaitMs;
@@ -381,6 +455,7 @@ async function cmdHold(flags, cmdPart) {
     await sleep(Math.min(cfg.pollMs, remaining));
     await withMutex(() => {
       const st = readState();
+      pruneQueue(st, cfg);
       acquired = tryTakeSlot(st, me, cfg);
       position = acquired ? 0 : Math.max(1, sortedQueue(st.queue).findIndex((e) => e.id === me.id) + 1);
       writeJsonAtomic(GUARD_JSON, st);
@@ -409,12 +484,22 @@ async function cmdHold(flags, cmdPart) {
   setStatus(name, 'accepting', note);
   await acquireEffects(cfg, slot);
 
-  log(`开始执行验收命令：${cmd.join(' ')}`);
-  const child = spawn(cmd[0], cmd.slice(1), { shell: true, stdio: 'inherit', windowsHide: false });
+  const cmdForShell = [quoteForCmd(cmd[0]), ...cmd.slice(1).map(quoteForCmd)];
+  const cmdStartMs = Date.now();
+  log(`开始执行验收命令：${cmdForShell.join(' ')}`);
+  const child = spawn(cmdForShell[0], cmdForShell.slice(1), { shell: true, stdio: 'inherit', windowsHide: false });
   const childExit = new Promise((res) => {
     child.on('error', () => res(1));
     child.on('exit', (c, sig) => res(sig ? 1 : (c ?? 1)));
   });
+  // 验收命令看护（工单 #488）：命令运行超 cmdWatchMs 仍未退出则周期性告警提示人工裁决，
+  // 不自动杀——正常验收可能长跑。背景：验收命令 stdio inherit，外层若接了停摆的管道
+  // 消费方，命令会卡死在写满的管道上且 guard 心跳仍在跳（活心跳假活），TTL 挂死接管
+  // 判据失效、租约无人能自动接走——此时唯一出路就是这里的告警指向的人工裁决。
+  const cmdWatch = cfg.cmdWatchMs > 0 ? setInterval(() => {
+    warn(`看护提示：验收命令已运行 ${humanDur(Date.now() - cmdStartMs)} 仍未退出（PID ${child.pid}）。` +
+      '若属输出管道无消费者等挂死形态（心跳仍在跳、他人接管不会触发），请人工裁决：结束本 hold 进程或 release --force。');
+  }, cfg.cmdWatchMs) : null;
   const heartbeat = setInterval(() => {
     withMutex(() => {
       const st = readState();
@@ -428,6 +513,7 @@ async function cmdHold(flags, cmdPart) {
 
   const release = async () => {
     clearInterval(heartbeat);
+    if (cmdWatch) clearInterval(cmdWatch);
     // 工单 #495：交还机器前的任务栏还原兜底（先于清租约——验收命令对电池面板是拔电式
     // 强杀，placement/tiling 族电池收尾无自救兜底，残局只能在这里兜住）。
     await restoreTaskbarEffect(cfg);
@@ -478,7 +564,7 @@ function cmdStatus(flags) {
   const q = sortedQueue(st.queue);
   if (q.length) {
     console.log('等待队列：');
-    q.forEach((e, i) => console.log(`  ${i + 1}. ${e.name}｜${e.purpose}｜入队于 ${e.enqueuedAt}（${humanDur(Date.now() - e.enqueuedMs)} 前）`));
+    q.forEach((e, i) => console.log(`  ${i + 1}. ${e.name}｜${e.purpose}｜入队于 ${e.enqueuedAt}（${humanDur(Date.now() - e.enqueuedMs)} 前）｜PID ${e.pid ?? '未记录'}${pidAlive(e.pid) ? '' : '（进程已不存在，陈旧超阈将在下次拿槽时被收割）'}`));
   } else {
     console.log('等待队列：（空）');
   }
@@ -528,6 +614,8 @@ function sandboxConfig(sandbox) {
     ttlMs: 900,
     maxWaitMs: 5_000,
     pollMs: 120,
+    queueStaleMs: 1_000, // 沙箱短阈值：T11 死头收割段用（工单 #488）
+    cmdWatchMs: 400, // 沙箱短间隔：T12 看护告警段用（工单 #488）
     panelPathPattern: 'Z:\\nonexistent*',
     gracefulPanelsCmd: markerCmd('graceful'), // 优雅径沙箱 no-op：写标记、不触真机进程
     gracefulWaitMs: 100, // 短预算防真等（no-op 不产 PID，等待本就即刻出）
@@ -705,6 +793,39 @@ async function cmdSelftest() {
     const s = await run(['status']);
     assert.ok(s.text.includes('展示者'), s.text);
     assert.ok(s.text.includes('验收槽'), s.text);
+  });
+
+  // 工单 #488：队列死条目收割——死头（pid 不存在且陈旧超阈）不堵候补轮；活 pid 条目
+  // 即使陈旧也不误收（保守性双判据）。候补用 accept-sprint 越过活条目以拿到槽。
+  await test('T11 队列死条目收割：死头不堵候补、活 pid 不误收', { timeout: 20_000 }, async () => {
+    writeJsonAtomic(cfgPath, { ...sandboxConfig(sandbox), ttlMs: 3_600_000 });
+    const deadE = {
+      id: 'q-dead', name: 'dead-ghost', purpose: 'selftest', note: '', checkout: 'ghost',
+      pid: 999_999, enqueuedMs: Date.now() - 60_000, enqueuedAt: localIso(),
+    };
+    const liveE = {
+      id: 'q-live', name: 'live-but-stale', purpose: 'selftest', note: '', checkout: 'live',
+      pid: process.pid, enqueuedMs: Date.now() - 60_000, enqueuedAt: localIso(),
+    };
+    writeJsonAtomic(path.join(sandbox, 'guard.json'), { slot: null, queue: [deadE, liveE], lastReleaseAt: null, lastReleaseMs: null });
+    const r = await run(['hold', '--as', 't11', '--purpose', 'accept-sprint', '--', 'cmd', '/c', 'exit', '0']);
+    assert.equal(r.code, 0, `死头收割后候补应立即拿槽：exit=${r.code}\n${r.text}`);
+    assert.ok(r.text.includes('收割队列死条目'), `应留收割留痕：${r.text}`);
+    const q = readSandboxState().queue;
+    assert.deepEqual(q.map((e) => e.name), ['live-but-stale'],
+      `活 pid 条目不得被误收、死条目应被收走，实际队列：${JSON.stringify(q.map((e) => e.name))}`);
+    assert.ok(r.text.includes('已拿到验收槽：t11'), `候补应越过收割后的队列直接拿槽：${r.text}`);
+    // 清尾：liveE 是活 pid（永不自动收割）——留给下段会把它段堵死，验完即清。
+    writeJsonAtomic(path.join(sandbox, 'guard.json'), { slot: null, queue: [], lastReleaseAt: null, lastReleaseMs: null });
+    writeJsonAtomic(cfgPath, sandboxConfig(sandbox));
+  });
+
+  // 工单 #488：验收命令看护——长跑命令超 cmdWatchMs 触发告警提示（不自动杀，命令照常跑完）。
+  await test('T12 验收命令看护：超时告警出现且不杀', { timeout: 20_000 }, async () => {
+    const r = await run(['hold', '--as', 't12', '--', 'node', '-e', '"setTimeout(()=>process.exit(0),1200)"']);
+    assert.equal(r.code, 0, `看护不杀——命令应照常跑完：exit=${r.code}\n${r.text}`);
+    assert.ok(r.text.includes('看护提示'), `1.2s 命令在 cmdWatchMs=400 下应至少告警一次：${r.text}`);
+    assert.equal(readSandboxState().slot, null, '告警后照常释放');
   });
 
   await new Promise((res) => setTimeout(res, 100));
